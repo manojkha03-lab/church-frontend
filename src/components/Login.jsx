@@ -8,12 +8,14 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setPendingApproval(false);
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
@@ -25,6 +27,8 @@ const Login = () => {
       if (res.ok) {
         login(data.token, data.user);
         navigate(data.user?.role === 'admin' ? '/admin/dashboard' : '/member/dashboard');
+      } else if (data.pendingApproval) {
+        setPendingApproval(true);
       } else {
         setError(data.message || 'Unable to login. Please check your name and password.');
       }
@@ -35,7 +39,7 @@ const Login = () => {
     }
   };
 
-  const clearError = () => setError('');
+  const clearError = () => { setError(''); setPendingApproval(false); };
 
   return (
     <div className="login-page">
@@ -51,6 +55,24 @@ const Login = () => {
           <h2 className="login-title text-2xl sm:text-3xl">Welcome Back</h2>
           <p className="login-subtitle text-sm sm:text-base">Sign in to your Sacred Heart account</p>
         </div>
+
+        {/* Pending approval message */}
+        {pendingApproval && (
+          <div className="p-4 rounded-lg border border-amber-300 bg-amber-50" role="status">
+            <div className="flex gap-3 items-start">
+              <span className="text-2xl flex-shrink-0">⏳</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-800">Account Pending Approval</p>
+                <p className="text-sm text-amber-700 mt-1">Your account is awaiting admin approval. You'll be able to log in once approved.</p>
+              </div>
+              <button className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition" onClick={clearError} aria-label="Dismiss">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Inline error message */}
         {error && (

@@ -1,61 +1,112 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import { auth, RecaptchaVerifier, signInWithPhoneNumber } from '../config/firebase';
 
+// ─── 6-box OTP input component ───────────────────────────────────────────────
+const OtpInput = ({ value, onChange, disabled }) => {
+  const inputRefs = useRef([]);
+  const digits = value.padEnd(6, '').slice(0, 6).split('');
+
+  const focusInput = (idx) => inputRefs.current[idx]?.focus();
+
+  const handleChange = (idx, val) => {
+    if (!/^\d?$/.test(val)) return;
+    const next = [...digits];
+    next[idx] = val;
+    onChange(next.join(''));
+    if (val && idx < 5) focusInput(idx + 1);
+  };
+
+  const handleKeyDown = (idx, e) => {
+    if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
+      focusInput(idx - 1);
+    }
+    if (e.key === 'ArrowLeft' && idx > 0) focusInput(idx - 1);
+    if (e.key === 'ArrowRight' && idx < 5) focusInput(idx + 1);
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted) {
+      onChange(pasted);
+      focusInput(Math.min(pasted.length, 5));
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={el => inputRefs.current[i] = el}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={d || ''}
+          onChange={e => handleChange(i, e.target.value)}
+          onKeyDown={e => handleKeyDown(i, e)}
+          onPaste={i === 0 ? handlePaste : undefined}
+          disabled={disabled}
+          autoFocus={i === 0}
+          style={{
+            width: 44, height: 52, textAlign: 'center', fontSize: '1.25rem',
+            fontWeight: 700, borderRadius: 10, border: '2px solid #d1d5db',
+            outline: 'none', transition: 'border-color 0.15s',
+            ...(d ? { borderColor: '#6366f1' } : {}),
+          }}
+          onFocus={e => { e.target.style.borderColor = '#6366f1'; }}
+          onBlur={e => { if (!d) e.target.style.borderColor = '#d1d5db'; }}
+          aria-label={`OTP digit ${i + 1}`}
+        />
+      ))}
+    </div>
+  );
+};
+
+// ─── Main Register component ─────────────────────────────────────────────────
 const Register = () => {
-  const [step, setStep]             = useState(1); // 1=form, 2=otp, 3=success
-  const [name, setName]             = useState('');
-  const [mobile, setMobile]         = useState('');
-  const [password, setPassword]     = useState('');
-  const [otp, setOtp]               = useState('');
-  const [error, setError]           = useState('');
-  const [success, setSuccess]       = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [visible, setVisible]       = useState(false);
-  const [otpSent, setOtpSent]       = useState(false);
+  const [step, setStep]               = useState(1); // 1=form, 2=otp, 3=pending
+  const [name, setName]               = useState('');
+  const [mobile, setMobile]           = useState('');
+  const [password, setPassword]       = useState('');
+  const [otp, setOtp]                 = useState('');
+  const [error, setError]             = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [visible, setVisible]         = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const [confirmResult, setConfirmResult] = useState(null);
 
   const navigate  = useNavigate();
-  const { login } = useAuth();
   const firstRef  = useRef(null);
-  const otpRef    = useRef(null);
+  const recaptchaRef = useRef(null);
 
-  // Trigger enter animation on mount
+  // Trigger enter animation
   useEffect(() => {
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Focus first field once visible
   useEffect(() => {
     if (visible && step === 1) firstRef.current?.focus();
   }, [visible, step]);
 
-  // Focus OTP input when step changes to 2
-  useEffect(() => {
-    if (step === 2) otpRef.current?.focus();
-  }, [step]);
-
-  // Resend countdown timer
+  // Resend countdown
   useEffect(() => {
     if (resendTimer <= 0) return;
     const id = setTimeout(() => setResendTimer(t => t - 1), 1000);
     return () => clearTimeout(id);
   }, [resendTimer]);
 
-  // Close: animate out then go back
+  // Close modal
   const handleClose = () => {
     setVisible(false);
     setTimeout(() => navigate(-1), 280);
   };
+  const handleOverlayClick = (e) => { if (e.target === e.currentTarget) handleClose(); };
 
-  // Dismiss on overlay click
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) handleClose();
-  };
-
-  // Close on Escape key
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', onKey);
@@ -64,70 +115,94 @@ const Register = () => {
 
   const clearError = () => setError('');
 
-  // Step 1: Send OTP
+  // Setup invisible reCAPTCHA
+  const setupRecaptcha = useCallback(() => {
+    if (recaptchaRef.current) return;
+    recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: () => {},
+    });
+  }, []);
+
+  // Step 1: Validate → Send Firebase OTP
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      const res = await fetch(`${API_URL}/api/auth/send-otp`, {
-        method:  'POST',
+      // Check availability on backend first
+      const checkRes = await fetch(`${API_URL}/api/auth/check-availability`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name, mobile, password }),
+        body: JSON.stringify({ name, mobile }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setOtpSent(true);
-        setStep(2);
-        setResendTimer(60);
-      } else {
-        setError(data.message || 'Failed to send OTP.');
+      const checkData = await checkRes.json();
+      if (!checkRes.ok) {
+        setError(checkData.message || 'Validation failed.');
+        setLoading(false);
+        return;
       }
-    } catch {
-      setError('Network error. Please check your connection.');
+
+      // Setup reCAPTCHA and send OTP via Firebase
+      setupRecaptcha();
+      const phoneNumber = '+91' + mobile; // India country code — adjust as needed
+      const result = await signInWithPhoneNumber(auth, phoneNumber, recaptchaRef.current);
+      setConfirmResult(result);
+      setStep(2);
+      setResendTimer(30);
+    } catch (err) {
+      console.error('Firebase OTP error:', err);
+      if (err.code === 'auth/too-many-requests') {
+        setError('Too many OTP requests. Please wait and try again later.');
+      } else if (err.code === 'auth/invalid-phone-number') {
+        setError('Invalid phone number format.');
+      } else {
+        setError(err.message || 'Failed to send OTP. Please try again.');
+      }
+      // Reset reCAPTCHA on error
+      if (recaptchaRef.current) {
+        try { recaptchaRef.current.clear(); } catch {}
+        recaptchaRef.current = null;
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 2: Verify OTP then Register
+  // Step 2: Verify OTP via Firebase → Register on backend
   const handleVerifyAndRegister = async (e) => {
     e.preventDefault();
+    if (otp.length !== 6) {
+      setError('Please enter all 6 digits.');
+      return;
+    }
     setError('');
     setLoading(true);
-    try {
-      // Verify OTP
-      const verifyRes = await fetch(`${API_URL}/api/auth/verify-otp`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ mobile, otp }),
-      });
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok) {
-        setError(verifyData.message || 'OTP verification failed.');
-        setLoading(false);
-        return;
-      }
 
-      // Register
+    try {
+      // Verify OTP with Firebase
+      await confirmResult.confirm(otp);
+
+      // OTP verified — register user on backend
       const regRes = await fetch(`${API_URL}/api/auth/register`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name, mobile, password }),
+        body: JSON.stringify({ name, mobile, password }),
       });
       const regData = await regRes.json();
       if (regRes.ok) {
-        setSuccess(true);
-        setStep(3);
-        if (regData.token) {
-          login(regData.token, regData.user);
-        }
-        setTimeout(() => navigate('/member/dashboard'), 1400);
+        setStep(3); // Show pending approval screen
       } else {
-        setError(regData.message || 'Registration failed. Please try again.');
+        setError(regData.message || 'Registration failed.');
       }
-    } catch {
-      setError('Network error. Please check your connection.');
+    } catch (err) {
+      console.error('OTP verify error:', err);
+      if (err.code === 'auth/invalid-verification-code') {
+        setError('Invalid OTP. Please check and try again.');
+      } else {
+        setError(err.message || 'Verification failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -138,19 +213,23 @@ const Register = () => {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/auth/send-otp`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name, mobile, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setResendTimer(60);
-      } else {
-        setError(data.message || 'Failed to resend OTP.');
+      // Reset reCAPTCHA
+      if (recaptchaRef.current) {
+        try { recaptchaRef.current.clear(); } catch {}
+        recaptchaRef.current = null;
       }
-    } catch {
-      setError('Network error. Please check your connection.');
+      setupRecaptcha();
+      const phoneNumber = '+91' + mobile;
+      const result = await signInWithPhoneNumber(auth, phoneNumber, recaptchaRef.current);
+      setConfirmResult(result);
+      setOtp('');
+      setResendTimer(30);
+    } catch (err) {
+      setError(err.message || 'Failed to resend OTP.');
+      if (recaptchaRef.current) {
+        try { recaptchaRef.current.clear(); } catch {}
+        recaptchaRef.current = null;
+      }
     } finally {
       setLoading(false);
     }
@@ -173,12 +252,24 @@ const Register = () => {
           </svg>
         </button>
 
-        {/* Success state */}
-        {success ? (
+        {/* Success state → Pending Approval */}
+        {step === 3 ? (
           <div className="reg-success">
-            <div className="reg-success-icon" aria-hidden="true">✓</div>
-            <h2 className="reg-success-title">Welcome to the Family!</h2>
-            <p className="reg-success-sub">Your account has been created. Redirecting&hellip;</p>
+            <div className="reg-success-icon" aria-hidden="true" style={{ background: '#fef3c7', color: '#d97706' }}>⏳</div>
+            <h2 className="reg-success-title">Registration Successful!</h2>
+            <p className="reg-success-sub" style={{ color: '#6b7280', lineHeight: 1.6 }}>
+              Your account has been created and is now
+              <strong style={{ color: '#d97706' }}> pending admin approval</strong>.
+              <br />
+              You will be able to log in once an administrator approves your account.
+            </p>
+            <Link
+              to="/login"
+              className="reg-btn"
+              style={{ display: 'inline-flex', marginTop: '1rem', textDecoration: 'none' }}
+            >
+              Go to Login
+            </Link>
           </div>
         ) : (
           <>
@@ -268,6 +359,9 @@ const Register = () => {
                 <p className="reg-hint">Minimum 6 characters</p>
               </div>
 
+              {/* Invisible reCAPTCHA container */}
+              <div id="recaptcha-container" />
+
               {/* Submit - Send OTP */}
               <button type="submit" className="reg-btn" disabled={loading}>
                 {loading ? (
@@ -288,36 +382,21 @@ const Register = () => {
             ) : step === 2 ? (
             <form onSubmit={handleVerifyAndRegister} className="reg-form" noValidate>
 
-              <p className="reg-otp-info" style={{ textAlign: 'center', color: '#6b7280', marginBottom: '1rem' }}>
-                OTP sent to <strong>{mobile}</strong>
-                <br />
-                <small>(Check backend console for mock OTP)</small>
+              <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '0.5rem' }}>
+                OTP sent to <strong>+91 {mobile}</strong>
+              </p>
+              <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem', marginBottom: '1.25rem' }}>
+                Enter the 6-digit code from your SMS
               </p>
 
-              {/* OTP Field */}
+              {/* 6-box OTP Input */}
               <div className="reg-field">
-                <label htmlFor="reg-otp" className="reg-label">Enter OTP</label>
-                <div className="reg-input-wrap">
-                  <svg className="reg-input-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                  <input
-                    id="reg-otp"
-                    ref={otpRef}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="6-digit OTP"
-                    value={otp}
-                    onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); clearError(); }}
-                    required
-                    maxLength={6}
-                    className="reg-input"
-                  />
-                </div>
+                <label className="reg-label" style={{ textAlign: 'center', display: 'block' }}>Verification Code</label>
+                <OtpInput value={otp} onChange={(val) => { setOtp(val); clearError(); }} disabled={loading} />
               </div>
 
               {/* Verify & Register */}
-              <button type="submit" className="reg-btn" disabled={loading}>
+              <button type="submit" className="reg-btn" disabled={loading || otp.length < 6}>
                 {loading ? (
                   <>
                     <span className="reg-spinner" aria-hidden="true" />
@@ -335,17 +414,16 @@ const Register = () => {
 
               {/* Resend / Back */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem' }}>
-                <button type="button" className="reg-login-link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.875rem' }} onClick={() => { setStep(1); setOtp(''); clearError(); }}>
-                  ← Back
+                <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.875rem' }} onClick={() => { setStep(1); setOtp(''); clearError(); }}>
+                  &#8592; Back
                 </button>
                 <button
                   type="button"
-                  className="reg-login-link"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: resendTimer > 0 ? '#9ca3af' : '#6366f1', fontSize: '0.875rem' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: resendTimer > 0 ? '#9ca3af' : '#6366f1', fontSize: '0.875rem', fontWeight: resendTimer > 0 ? 400 : 600 }}
                   onClick={handleResendOtp}
                   disabled={resendTimer > 0 || loading}
                 >
-                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                  {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
                 </button>
               </div>
             </form>
