@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a3e"/>
+      <stop offset="40%" stop-color="#2d2b55"/>
+      <stop offset="100%" stop-color="#4a3f6b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="35%" r="30%">
+      <stop offset="0%" stop-color="#f5d680" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#f5d680" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Sky -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <!-- Glow behind church -->
+  <ellipse cx="960" cy="400" rx="500" ry="350" fill="url(#glow)"/>
+  <!-- Church body -->
+  <rect x="760" y="450" width="400" height="400" fill="#3a3555" rx="4"/>
+  <!-- Roof -->
+  <polygon points="700,450 960,250 1220,450" fill="#2d2850"/>
+  <!-- Steeple -->
+  <rect x="930" y="200" width="60" height="60" fill="#2d2850"/>
+  <polygon points="920,200 960,100 1000,200" fill="#2d2850"/>
+  <!-- Cross -->
+  <rect x="954" y="60" width="12" height="50" fill="#f5d680"/>
+  <rect x="941" y="75" width="38" height="10" fill="#f5d680"/>
+  <!-- Window 1 -->
+  <ellipse cx="870" cy="550" rx="30" ry="50" fill="#6b5eaf" opacity="0.7"/>
+  <ellipse cx="870" cy="550" rx="20" ry="40" fill="#8b7fd4" opacity="0.5"/>
+  <!-- Window 2 -->
+  <ellipse cx="1050" cy="550" rx="30" ry="50" fill="#6b5eaf" opacity="0.7"/>
+  <ellipse cx="1050" cy="550" rx="20" ry="40" fill="#8b7fd4" opacity="0.5"/>
+  <!-- Door -->
+  <rect x="935" y="680" width="50" height="170" fill="#1a1a3e" rx="25"/>
+  <!-- Stars -->
+  <circle cx="200" cy="100" r="2" fill="#fff" opacity="0.8"/>
+  <circle cx="400" cy="60" r="1.5" fill="#fff" opacity="0.6"/>
+  <circle cx="600" cy="120" r="2" fill="#fff" opacity="0.7"/>
+  <circle cx="1300" cy="80" r="2" fill="#fff" opacity="0.8"/>
+  <circle cx="1500" cy="130" r="1.5" fill="#fff" opacity="0.6"/>
+  <circle cx="1700" cy="70" r="2" fill="#fff" opacity="0.7"/>
+  <circle cx="150" cy="200" r="1" fill="#fff" opacity="0.5"/>
+  <circle cx="350" cy="180" r="1.5" fill="#fff" opacity="0.6"/>
+  <circle cx="1600" cy="200" r="1" fill="#fff" opacity="0.5"/>
+  <circle cx="1750" cy="160" r="1.5" fill="#fff" opacity="0.7"/>
+  <circle cx="800" cy="50" r="1" fill="#fff" opacity="0.4"/>
+  <circle cx="1100" cy="40" r="1.5" fill="#fff" opacity="0.5"/>
+  <!-- Ground -->
+  <rect x="0" y="850" width="1920" height="230" fill="#1a1830"/>
+  <ellipse cx="960" cy="850" rx="700" ry="20" fill="#2a2545"/>
+</svg>
