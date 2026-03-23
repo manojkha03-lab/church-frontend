@@ -28,6 +28,7 @@ import AdminPrayerRequests from './components/AdminPrayerRequests';
 import AdminDonations from './components/AdminDonations';
 import AdminRecords from './components/AdminRecords';
 import Contact from './components/Contact';
+import Waiting from './components/Waiting';
 
 // ─── Icon helper ─────────────────────────────────────────────────────────────
 const NavIcon = ({ d }) => (
@@ -114,6 +115,7 @@ const AppRoutes = () => (
     <Route path="/" element={<Home />} />
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
+    <Route path="/waiting" element={<Waiting />} />
     <Route path="/dashboard" element={<Navigate to="/member/dashboard" replace />} />
     <Route path="/profile" element={<Navigate to="/member/profile" replace />} />
 
