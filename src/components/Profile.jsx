@@ -63,7 +63,7 @@ const Profile = () => {
   const [profile,  setProfile]  = useState(null);
   const [donations, setDonations] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', bio: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', bio: '' });
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
@@ -112,7 +112,7 @@ const Profile = () => {
       })
       .then(data => {
         setProfile(data);
-        setFormData({ name: data.name || '', phone: data.phone || '', bio: data.bio || '' });
+        setFormData({ name: data.name || '', email: data.email || '', phone: data.phone || '', bio: data.bio || '' });
       })
       .catch(() => { toast.error('Unable to load profile.'); setError(true); })
       .finally(() => setLoading(false));
@@ -133,6 +133,7 @@ const Profile = () => {
     try {
       const payload = new FormData();
       payload.append('name', formData.name);
+      payload.append('email', formData.email);
       payload.append('phone', formData.phone);
       payload.append('bio', formData.bio);
       if (selectedFile) {
@@ -233,7 +234,7 @@ const Profile = () => {
             <span className="section-label">Member Profile</span>
             <h2 className="prof-identity__name">{profile.name}</h2>
             <p className="prof-identity__email">
-              <Icon d={ICONS.mail} size={14} /> {profile.email}
+              <Icon d={ICONS.mail} size={14} /> {profile.email || 'No email added'}
             </p>
             <span className={`prof-role-badge prof-role-badge--${profile.role}`}>
               {profile.role === 'admin' ? '⚙ Admin' : '✝ Member'}
@@ -272,7 +273,7 @@ const Profile = () => {
             </div>
             <div className="profile-item">
               <span><Icon d={ICONS.mail} size={13} /> Email Address</span>
-              <strong>{profile.email}</strong>
+              <strong>{profile.email || 'Not added yet'}</strong>
             </div>
             <div className="profile-item">
               <span><Icon d={ICONS.phone} size={13} /> Phone Number</span>
@@ -399,9 +400,9 @@ const Profile = () => {
                 <input
                   id="prof-email"
                   type="email"
-                  value={profile.email}
-                  disabled
-                  title="Email cannot be changed"
+                  placeholder="Add your email address"
+                  value={formData.email}
+                  onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
                 />
               </div>
 
@@ -445,7 +446,7 @@ const Profile = () => {
                   type="button"
                   className="btn-secondary"
                   onClick={() => {
-                    setFormData({ name: profile.name, phone: profile.phone || '', bio: profile.bio || '' });
+                    setFormData({ name: profile.name, email: profile.email || '', phone: profile.phone || '', bio: profile.bio || '' });
                     setSelectedFile(null);
                     setEditOpen(false);
                   }}

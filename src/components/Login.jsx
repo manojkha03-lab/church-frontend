@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,14 +19,14 @@ const Login = () => {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, password }),
       });
       const data = await res.json();
       if (res.ok) {
         login(data.token, data.user);
         navigate(data.user?.role === 'admin' ? '/admin/dashboard' : '/member/dashboard');
       } else {
-        setError(data.message || 'Unable to login. Please check your email and password.');
+        setError(data.message || 'Unable to login. Please check your name and password.');
       }
     } catch {
       setError('Network error. Please check your connection and try again.');
@@ -70,22 +70,21 @@ const Login = () => {
         )}
 
         <form onSubmit={handleSubmit} className="login-form space-y-4 sm:space-y-5" noValidate>
-          {/* Email field */}
+          {/* Name field */}
           <div className="login-field">
-            <label htmlFor="login-email" className="login-label block text-sm font-medium text-gray-900 mb-2">Email Address</label>
+            <label htmlFor="login-name" className="login-label block text-sm font-medium text-gray-900 mb-2">Full Name</label>
             <div className="login-input-wrap relative">
               <svg className="login-input-icon absolute left-3 top-3 sm:top-4 w-5 h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
               </svg>
               <input
-                id="login-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); clearError(); }}
+                id="login-name"
+                type="text"
+                placeholder="Your full name"
+                value={name}
+                onChange={(e) => { setName(e.target.value); clearError(); }}
                 required
-                autoComplete="email"
+                autoComplete="name"
                 className="login-input w-full pl-10 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
