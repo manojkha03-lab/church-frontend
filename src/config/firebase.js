@@ -10,9 +10,42 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const missingFirebaseKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
 
-const googleProvider = new GoogleAuthProvider();
+let app = null;
+let auth = null;
+let googleProvider = null;
+let firebaseInitError = null;
 
-export { auth, RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, googleProvider };
+if (missingFirebaseKeys.length === 0) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+  } catch (error) {
+    firebaseInitError = error;
+    console.error('Firebase initialization failed:', error);
+  }
+} else {
+  console.warn(
+    `Firebase env is incomplete. Missing keys: ${missingFirebaseKeys.join(', ')}`
+  );
+}
+
+const isFirebaseConfigured = Boolean(auth);
+
+export {
+  auth,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  googleProvider,
+  isFirebaseConfigured,
+  missingFirebaseKeys,
+  firebaseInitError,
+};
