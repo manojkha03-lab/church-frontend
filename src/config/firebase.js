@@ -23,6 +23,12 @@ if (missingFirebaseKeys.length === 0) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
+    // Ensure auth.settings exists (Firebase SDK reads this internally for
+    // RecaptchaVerifier — if the object is incomplete it throws
+    // "Cannot read properties of null (reading 'settings')").
+    if (auth && !auth.settings) {
+      auth.settings = {};
+    }
     googleProvider = new GoogleAuthProvider();
   } catch (error) {
     firebaseInitError = error;

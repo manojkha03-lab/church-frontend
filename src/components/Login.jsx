@@ -107,7 +107,17 @@ const Login = () => {
   // ── Phone OTP (Firebase) ──
   const setupRecaptcha = useCallback(() => {
     if (recaptchaRef.current) return;
-    recaptchaRef.current = new RecaptchaVerifier(auth, 'login-recaptcha', { size: 'invisible', callback: () => {} });
+    if (!auth) {
+      console.warn('setupRecaptcha: auth is null, skipping');
+      return;
+    }
+    try {
+      recaptchaRef.current = new RecaptchaVerifier(auth, 'login-recaptcha', { size: 'invisible', callback: () => {} });
+    } catch (err) {
+      console.error('RecaptchaVerifier init failed:', err);
+      recaptchaRef.current = null;
+      throw new Error('Phone verification setup failed. Please reload the page and try again.');
+    }
   }, []);
 
   const handleSendOtp = async (e) => {

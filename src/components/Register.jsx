@@ -124,14 +124,25 @@ const Register = () => {
     return false;
   };
 
-  // Setup invisible reCAPTCHA
+  // Setup invisible reCAPTCHA (wrapped in try/catch — Firebase SDK crashes
+  // with "Cannot read properties of null (reading 'settings')" if auth
+  // internals aren't fully ready).
   const setupRecaptcha = useCallback(() => {
     if (recaptchaRef.current) return;
-    if (!auth) return;
-    recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: () => {},
-    });
+    if (!auth) {
+      console.warn('setupRecaptcha: auth is null, skipping');
+      return;
+    }
+    try {
+      recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {},
+      });
+    } catch (err) {
+      console.error('RecaptchaVerifier init failed:', err);
+      recaptchaRef.current = null;
+      throw new Error('Phone verification setup failed. Please reload the page and try again.');
+    }
   }, []);
 
   // Step 1: Validate → Send Firebase OTP
