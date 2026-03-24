@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
-import { auth, RecaptchaVerifier, signInWithPhoneNumber } from '../config/firebase';
+import { auth, RecaptchaVerifier, signInWithPhoneNumber, isFirebaseConfigured, missingFirebaseKeys } from '../config/firebase';
 
 // ─── 6-box OTP input component ───────────────────────────────────────────────
 const OtpInput = ({ value, onChange, disabled }) => {
@@ -115,9 +115,19 @@ const Register = () => {
 
   const clearError = () => setError('');
 
+  const ensureFirebase = () => {
+    if (isFirebaseConfigured && auth) return true;
+    const hint = missingFirebaseKeys.length
+      ? ` Missing: ${missingFirebaseKeys.join(', ')}`
+      : '';
+    setError(`Firebase is not configured. Phone OTP registration is unavailable.${hint}`);
+    return false;
+  };
+
   // Setup invisible reCAPTCHA
   const setupRecaptcha = useCallback(() => {
     if (recaptchaRef.current) return;
+    if (!auth) return;
     recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
       size: 'invisible',
       callback: () => {},
@@ -129,6 +139,8 @@ const Register = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    if (!ensureFirebase()) { setLoading(false); return; }
 
     try {
       // Check availability on backend first
@@ -180,6 +192,9 @@ const Register = () => {
     setError('');
     setLoading(true);
 
+    if (!ensureFirebase()) { setLoading(false); return; }
+    if (!confirmResult) { setError('OTP session expired. Please go back and resend.'); setLoading(false); return; }
+
     try {
       // Verify OTP with Firebase
       await confirmResult.confirm(otp);
@@ -212,6 +227,7 @@ const Register = () => {
   const handleResendOtp = async () => {
     setError('');
     setLoading(true);
+    if (!ensureFirebase()) { setLoading(false); return; }
     try {
       // Reset reCAPTCHA
       if (recaptchaRef.current) {
