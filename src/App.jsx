@@ -91,8 +91,10 @@ const RoleRoute = ({ children, allowedRole }) => {
 
   const effectiveRole = user?.role || role || localStorage.getItem('role');
 
+  // If no role can be determined after loading is done, redirect to login
+  // to prevent infinite "Loading account..." stuck screen
   if (!effectiveRole) {
-    return <div className="container" style={{ padding: '2rem' }}>Loading account...</div>;
+    return <Navigate to="/login" replace />;
   }
 
   if (effectiveRole !== allowedRole) {
@@ -116,6 +118,7 @@ const AppRoutes = () => (
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
     <Route path="/waiting" element={<Waiting />} />
+    <Route path="/pending" element={<Waiting />} />
     <Route path="/dashboard" element={<Navigate to="/member/dashboard" replace />} />
     <Route path="/profile" element={<Navigate to="/member/profile" replace />} />
 
@@ -240,6 +243,8 @@ const AppShell = () => {
   const location = useLocation();
   const isHomePage     = location.pathname === '/';
   const isRegisterPage = location.pathname === '/register';
+  const isLoginPage    = location.pathname === '/login';
+  const isPendingPage  = location.pathname === '/pending' || location.pathname === '/waiting';
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/member/dashboard';
   const isAdminPage    = location.pathname.startsWith('/admin');
 
@@ -256,7 +261,7 @@ const AppShell = () => {
     );
   }
 
-  const fullWidth = isHomePage || isDashboard || isAdminPage;
+  const fullWidth = isHomePage || isDashboard || isAdminPage || isLoginPage || isPendingPage;
 
   return (
     <div className={fullWidth ? 'app-wrapper app-home' : 'app-wrapper'}>

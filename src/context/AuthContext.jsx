@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { API_URL } from '../config/api';
 
 const AuthContext = createContext();
@@ -23,6 +23,8 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [role, setRole] = useState(() => localStorage.getItem('role'));
   const [authLoading, setAuthLoading] = useState(() => Boolean(localStorage.getItem('token')));
+  // Track whether login() was just called so useEffect skips re-fetch
+  const justLoggedIn = useRef(false);
 
   const logout = useCallback(() => {
     setToken(null);
@@ -78,6 +80,12 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (token) {
+      // Skip re-fetch if login() was just called — user data is already fresh
+      if (justLoggedIn.current) {
+        justLoggedIn.current = false;
+        setAuthLoading(false);
+        return;
+      }
       setAuthLoading(true);
       fetch(`${API_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -126,6 +134,7 @@ export const AuthProvider = ({ children }) => {
   }, [token, logout]);
 
   const login = (newToken, userData) => {
+    justLoggedIn.current = true;
     setToken(newToken);
     setUser(userData);
     setRole(userData?.role || null);

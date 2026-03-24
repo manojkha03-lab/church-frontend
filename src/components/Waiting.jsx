@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 
 const Waiting = () => (
-  <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #fefce8, #fff7ed, #fef2f2)', padding: '1rem' }}>
-    <div style={{ maxWidth: 420, width: '100%', background: '#fff', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: '2.5rem 2rem', textAlign: 'center' }}>
+  <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #4facfe, #ffffff)', padding: '1rem' }}>
+    <div style={{ maxWidth: 420, width: '100%', background: '#fff', borderRadius: 12, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: '2.5rem 2rem', textAlign: 'center' }}>
       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏳</div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#92400e', marginBottom: '0.75rem' }}>Pending Approval</h1>
       <p style={{ color: '#78716c', lineHeight: 1.7, marginBottom: '1.5rem' }}>

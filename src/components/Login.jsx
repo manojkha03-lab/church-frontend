@@ -1,220 +1,56 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
-import {
-  auth, googleProvider, signInWithPopup,
-  signInWithPhoneNumber, RecaptchaVerifier,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  isFirebaseConfigured, firebaseStatus,
-} from '../config/firebase';
-
-// ─── 6-box OTP input ──────────────────────────────────────────────────────────
-const OtpInput = ({ value, onChange, disabled }) => {
-  const refs = useRef([]);
-  const digits = value.padEnd(6, '').slice(0, 6).split('');
-  const focus = (i) => refs.current[i]?.focus();
-  const handleChange = (i, v) => { if (!/^\d?$/.test(v)) return; const n = [...digits]; n[i] = v; onChange(n.join('')); if (v && i < 5) focus(i + 1); };
-  const handleKey = (i, e) => { if (e.key === 'Backspace' && !digits[i] && i > 0) focus(i - 1); };
-  const handlePaste = (e) => { e.preventDefault(); const p = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6); if (p) { onChange(p); focus(Math.min(p.length, 5)); } };
-  return (
-    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-      {digits.map((d, i) => (
-        <input key={i} ref={el => refs.current[i] = el} type="text" inputMode="numeric" maxLength={1}
-          value={d || ''} onChange={e => handleChange(i, e.target.value)} onKeyDown={e => handleKey(i, e)}
-          onPaste={i === 0 ? handlePaste : undefined} disabled={disabled} autoFocus={i === 0}
-          style={{ width: 44, height: 52, textAlign: 'center', fontSize: '1.25rem', fontWeight: 700, borderRadius: 10, border: `2px solid ${d ? '#6366f1' : '#d1d5db'}`, outline: 'none' }}
-          aria-label={`OTP digit ${i + 1}`} />
-      ))}
-    </div>
-  );
-};
 
 const Login = () => {
-  const [tab, setTab] = useState(isFirebaseConfigured ? 'email' : 'password');
-  // Email (Firebase)
-  const [email, setEmail] = useState('');
-  const [emailPw, setEmailPw] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
-  // Phone OTP (Firebase)
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [confirmResult, setConfirmResult] = useState(null);
-  const [resendTimer, setResendTimer] = useState(0);
-  const [phoneOtpDisabled, setPhoneOtpDisabled] = useState(false);
-  // Legacy name+password
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  // Common
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pendingApproval, setPendingApproval] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const recaptchaRef = useRef(null);
 
-  const clearError = () => { setError(''); setPendingApproval(false); };
-  const anyLoading = loading || googleLoading;
+  const clearError = () => setError('');
 
-  // Firebase error code → user-friendly message
-  const otpErrorMessage = (err) => {
-    const code = err?.code || '';
-    if (code === 'auth/too-many-requests')      return 'Too many OTP requests. Please wait a few minutes.';
-    if (code === 'auth/quota-exceeded')          return 'Daily OTP limit reached. Try again tomorrow.';
-    if (code === 'auth/invalid-phone-number')    return 'Invalid phone number. Enter a valid 10-digit number.';
-    if (code === 'auth/captcha-check-failed')    return 'reCAPTCHA failed. Please reload the page.';
-    if (code === 'auth/network-request-failed')  return 'Network error. Check your connection.';
-    if (code === 'auth/invalid-verification-code') return 'Invalid OTP. Check and try again.';
-    if (code === 'auth/code-expired')            return 'OTP expired. Request a new one.';
-    if (code === 'auth/operation-not-allowed')   return 'Phone sign-in is disabled. Contact admin.';
-    if (code === 'auth/missing-phone-provider')  return 'Phone auth not enabled. Contact admin.';
-    return err?.message || 'OTP failed. Please try again.';
-  };
-
-  const ensureFirebaseReady = () => {
-    if (isFirebaseConfigured && auth) return true;
-    setError('Firebase sign-in is unavailable. Use the Password tab to sign in.');
-    return false;
-  };
-
-  const resetRecaptcha = () => {
-    if (recaptchaRef.current) {
-      try { recaptchaRef.current.clear(); } catch {}
-      recaptchaRef.current = null;
+  // ── Role-based redirect helper ──
+  const redirectByRole = (user) => {
+    if (!user) { navigate('/login'); return; }
+    if (user.status === 'pending' || user.isApproved === false) {
+      navigate('/pending');
+    } else if (user.role === 'admin') {
+      navigate('/admin/dashboard');
+    } else {
+      navigate('/member/dashboard');
     }
   };
 
-  // Resend countdown
-  useEffect(() => { if (resendTimer <= 0) return; const id = setTimeout(() => setResendTimer(t => t - 1), 1000); return () => clearTimeout(id); }, [resendTimer]);
-
-  // ── Shared: send Firebase ID token to backend ──
-  const sendTokenToBackend = async (idToken) => {
-    const res = await fetch(`${API_URL}/api/auth/firebase-login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    });
-    const data = await res.json();
-    if (data.token) { login(data.token, data.user); navigate(data.user?.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'); return; }
-    if (data.pendingApproval) { setPendingApproval(true); return; }
-    throw new Error(data.message || 'Login failed.');
-  };
-
-  // ── Google ──
-  const handleGoogle = async () => {
-    if (!ensureFirebaseReady()) return;
-    clearError(); setGoogleLoading(true);
-    try { const r = await signInWithPopup(auth, googleProvider); await sendTokenToBackend(await r.user.getIdToken()); }
-    catch (err) { if (err.code !== 'auth/popup-closed-by-user') setError(err.message || 'Google sign-in failed.'); }
-    finally { setGoogleLoading(false); }
-  };
-
-  // ── Email/Password (Firebase) ──
-  const handleEmail = async (e) => {
-    e.preventDefault(); clearError(); setLoading(true);
-    if (!ensureFirebaseReady()) { setLoading(false); return; }
-    try {
-      const fn = isSignUp ? createUserWithEmailAndPassword : signInWithEmailAndPassword;
-      const r = await fn(auth, email, emailPw);
-      await sendTokenToBackend(await r.user.getIdToken());
-    } catch (err) {
-      const map = { 'auth/user-not-found': 'No account found. Try creating one.', 'auth/wrong-password': 'Incorrect password.', 'auth/invalid-credential': 'Invalid email or password.', 'auth/email-already-in-use': 'Email already registered. Sign in instead.', 'auth/weak-password': 'Password must be at least 6 characters.', 'auth/invalid-email': 'Invalid email address.' };
-      setError(map[err.code] || err.message);
-    } finally { setLoading(false); }
-  };
-
-  // ── Phone OTP (Firebase) ──
-  const setupRecaptcha = useCallback(() => {
-    if (recaptchaRef.current) return;
-    if (!auth) return;
-    try {
-      recaptchaRef.current = new RecaptchaVerifier(auth, 'login-recaptcha', { size: 'invisible', callback: () => {} });
-    } catch (err) {
-      console.error('RecaptchaVerifier init failed:', err);
-      recaptchaRef.current = null;
-      throw new Error('Phone verification setup failed. Please reload the page.');
-    }
-  }, []);
-
-  const handleSendOtp = async (e) => {
-    e.preventDefault(); clearError(); setLoading(true);
-    if (!ensureFirebaseReady()) { setLoading(false); return; }
-    try {
-      setupRecaptcha();
-      const r = await signInWithPhoneNumber(auth, '+91' + phone, recaptchaRef.current);
-      setConfirmResult(r); setOtpSent(true); setResendTimer(30);
-    } catch (err) {
-      console.error('Phone OTP error:', err?.code, err?.message, err);
-      const msg = otpErrorMessage(err);
-      const isQuotaOrConfig = ['auth/too-many-requests', 'auth/quota-exceeded',
-        'auth/operation-not-allowed', 'auth/missing-phone-provider'].includes(err?.code);
-      if (isQuotaOrConfig) {
-        setPhoneOtpDisabled(true);
-        setError(msg + ' Use the Password tab instead.');
-        setTab('password');
-      } else {
-        setError(msg);
-      }
-      resetRecaptcha();
-    } finally { setLoading(false); }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault(); if (otp.length !== 6) { setError('Enter all 6 digits.'); return; }
-    clearError(); setLoading(true);
-    if (!confirmResult) { setError('OTP session expired. Go back and resend.'); setLoading(false); return; }
-    try { const r = await confirmResult.confirm(otp); await sendTokenToBackend(await r.user.getIdToken()); }
-    catch (err) { console.error('OTP verify error:', err?.code, err); setError(otpErrorMessage(err)); }
-    finally { setLoading(false); }
-  };
-
-  const handleResendOtp = async () => {
-    clearError(); setLoading(true);
-    try {
-      resetRecaptcha();
-      setupRecaptcha();
-      const r = await signInWithPhoneNumber(auth, '+91' + phone, recaptchaRef.current);
-      setConfirmResult(r); setOtp(''); setResendTimer(30);
-    } catch (err) {
-      console.error('OTP resend error:', err?.code, err);
-      const msg = otpErrorMessage(err);
-      if (['auth/too-many-requests', 'auth/quota-exceeded'].includes(err?.code)) {
-        setPhoneOtpDisabled(true);
-        setError(msg + ' Use the Password tab instead.');
-        setTab('password');
-      } else {
-        setError(msg);
-      }
-      resetRecaptcha();
-    }
-    finally { setLoading(false); }
-  };
-
-  // ── Legacy name+password ──
-  const handlePassword = async (e) => {
-    e.preventDefault(); clearError(); setLoading(true);
+  // ── Login (name + password → backend) ──
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    clearError();
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), password }),
       });
       const data = await res.json();
-      if (res.ok) { login(data.token, data.user); navigate(data.user?.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'); }
-      else if (data.pendingApproval) { setPendingApproval(true); }
-      else { setError(data.message || 'Login failed.'); }
-    } catch { setError('Network error.'); }
-    finally { setLoading(false); }
+      if (res.ok && data.token && data.user) {
+        login(data.token, data.user);
+        redirectByRole(data.user);
+      } else if (data.pendingApproval) {
+        navigate('/pending');
+      } else {
+        setError(data.message || 'Login failed.');
+      }
+    } catch {
+      setError('Network error. Check your connection.');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  // Tab button style helper
-  const tabStyle = (active) => ({
-    flex: 1, padding: '0.6rem 0.25rem', border: 'none', borderRadius: 8,
-    fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
-    background: active ? '#4f46e5' : 'transparent',
-    color: active ? '#fff' : '#6b7280',
-    transition: 'all 0.15s',
-  });
 
   return (
     <div className="login-page">
@@ -228,19 +64,6 @@ const Login = () => {
           <h2 className="login-title text-2xl sm:text-3xl">Welcome Back</h2>
           <p className="login-subtitle text-sm sm:text-base">Sign in to your Sacred Heart account</p>
         </div>
-
-        {/* Pending approval */}
-        {pendingApproval && (
-          <div className="p-4 rounded-lg border border-amber-300 bg-amber-50" role="status">
-            <div className="flex gap-3 items-start">
-              <span className="text-2xl flex-shrink-0">⏳</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-amber-800">Account Pending Approval</p>
-                <p className="text-sm text-amber-700 mt-1">Your account is awaiting admin approval. You&apos;ll be able to sign in once approved.</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Error */}
         {error && (
@@ -257,135 +80,25 @@ const Login = () => {
           </div>
         )}
 
-        {/* ── Google Sign-In ── */}
-        {isFirebaseConfigured ? (
-          <button type="button" onClick={handleGoogle} disabled={anyLoading}
-            className="w-full py-3 rounded-lg border border-gray-300 bg-white text-gray-700 font-medium text-base hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3">
-            {googleLoading ? (
-              <><span className="inline-block w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /><span>Signing in…</span></>
-            ) : (
-              <><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></>
-            )}
-          </button>
-        ) : (
-          <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm">
-            Firebase sign-in is unavailable. Use the Password tab while configuration is updated.
+        {/* Login form */}
+        <form onSubmit={handleLogin} className="login-form space-y-4" noValidate>
+          <div className="login-field">
+            <label className="login-label block text-sm font-medium text-gray-900 mb-2">Full Name</label>
+            <input type="text" placeholder="Your full name" value={name}
+              onChange={e => { setName(e.target.value); clearError(); }} required autoComplete="name"
+              className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-        )}
-
-        {/* ── OR divider ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1rem 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-          <span style={{ color: '#9ca3af', fontSize: '0.875rem', fontWeight: 500 }}>OR</span>
-          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-        </div>
-
-        {/* ── Method tabs ── */}
-        <div style={{ display: 'flex', gap: 4, background: '#f3f4f6', borderRadius: 10, padding: 4, marginBottom: '1rem' }}>
-          {isFirebaseConfigured && (
-            <>
-              <button type="button" style={tabStyle(tab === 'email')} onClick={() => { setTab('email'); clearError(); }}>Email</button>
-              <button type="button" style={{...tabStyle(tab === 'phone'), ...(phoneOtpDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {})}}
-                onClick={() => { if (!phoneOtpDisabled) { setTab('phone'); clearError(); setOtpSent(false); setOtp(''); } }}
-                disabled={phoneOtpDisabled}
-                title={phoneOtpDisabled ? 'Phone OTP temporarily disabled due to rate limit' : ''}>Phone OTP</button>
-            </>
-          )}
-          <button type="button" style={tabStyle(tab === 'password')} onClick={() => { setTab('password'); clearError(); }}>Password</button>
-        </div>
-
-        {/* ═══ EMAIL TAB ═══ */}
-        {tab === 'email' && (
-          <form onSubmit={handleEmail} className="login-form space-y-4" noValidate>
-            <div className="login-field">
-              <label className="login-label block text-sm font-medium text-gray-900 mb-2">Email</label>
-              <input type="email" placeholder="your@email.com" value={email}
-                onChange={e => { setEmail(e.target.value); clearError(); }} required
-                className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div className="login-field">
-              <label className="login-label block text-sm font-medium text-gray-900 mb-2">Password</label>
-              <input type="password" placeholder={isSignUp ? "Create a password (min 6)" : "Your password"} value={emailPw}
-                onChange={e => { setEmailPw(e.target.value); clearError(); }} required minLength={6}
-                className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <button type="submit" disabled={anyLoading}
-              className="login-btn w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-all flex items-center justify-center gap-2">
-              {loading ? <><span className="login-spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>{isSignUp ? 'Creating…' : 'Signing In…'}</span></> : <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>}
-            </button>
-            <p className="text-center text-sm text-gray-600">
-              {isSignUp ? 'Already have an account? ' : "Don't have an email account? "}
-              <button type="button" className="text-blue-600 hover:text-blue-700 font-medium" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                onClick={() => { setIsSignUp(!isSignUp); clearError(); }}>
-                {isSignUp ? 'Sign In' : 'Create One'}
-              </button>
-            </p>
-          </form>
-        )}
-
-        {/* ═══ PHONE OTP TAB ═══ */}
-        {tab === 'phone' && (
-          !otpSent ? (
-            <form onSubmit={handleSendOtp} className="login-form space-y-4" noValidate>
-              <div className="login-field">
-                <label className="login-label block text-sm font-medium text-gray-900 mb-2">Mobile Number</label>
-                <div className="flex gap-2 items-center">
-                  <span className="text-sm font-medium text-gray-500" style={{ whiteSpace: 'nowrap' }}>+91</span>
-                  <input type="tel" placeholder="10-digit number" value={phone}
-                    onChange={e => { setPhone(e.target.value.replace(/\D/g, '').slice(0, 10)); clearError(); }}
-                    required maxLength={10}
-                    className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <button type="submit" disabled={anyLoading || phone.length < 10}
-                className="login-btn w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-all flex items-center justify-center gap-2">
-                {loading ? <><span className="login-spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Sending…</span></> : <span>Send OTP</span>}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="login-form space-y-4" noValidate>
-              <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '0.25rem' }}>OTP sent to <strong>+91 {phone}</strong></p>
-              <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem', marginBottom: '0.75rem' }}>Enter the 6-digit code from your SMS</p>
-              <OtpInput value={otp} onChange={v => { setOtp(v); clearError(); }} disabled={loading} />
-              <button type="submit" disabled={anyLoading || otp.length < 6}
-                className="login-btn w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-all flex items-center justify-center gap-2">
-                {loading ? <><span className="login-spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Verifying…</span></> : <span>Verify &amp; Sign In</span>}
-              </button>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-                <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.875rem' }} onClick={() => { setOtpSent(false); setOtp(''); clearError(); }}>&#8592; Back</button>
-                <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: resendTimer > 0 ? '#9ca3af' : '#6366f1', fontSize: '0.875rem', fontWeight: resendTimer > 0 ? 400 : 600 }}
-                  onClick={handleResendOtp} disabled={resendTimer > 0 || loading}>
-                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-                </button>
-              </div>
-            </form>
-          )
-        )}
-
-        {/* ═══ PASSWORD TAB (legacy name+password) ═══ */}
-        {tab === 'password' && (
-          <form onSubmit={handlePassword} className="login-form space-y-4" noValidate>
-            <div className="login-field">
-              <label className="login-label block text-sm font-medium text-gray-900 mb-2">Full Name</label>
-              <input type="text" placeholder="Your full name" value={name}
-                onChange={e => { setName(e.target.value); clearError(); }} required autoComplete="name"
-                className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div className="login-field">
-              <label className="login-label block text-sm font-medium text-gray-900 mb-2">Password</label>
-              <input type="password" placeholder="Your password" value={password}
-                onChange={e => { setPassword(e.target.value); clearError(); }} required autoComplete="current-password"
-                className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <button type="submit" disabled={anyLoading}
-              className="login-btn w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-all flex items-center justify-center gap-2">
-              {loading ? <><span className="login-spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Signing In…</span></> : <span>Sign In</span>}
-            </button>
-          </form>
-        )}
-
-        {/* reCAPTCHA container for phone auth */}
-        <div id="login-recaptcha" />
+          <div className="login-field">
+            <label className="login-label block text-sm font-medium text-gray-900 mb-2">Password</label>
+            <input type="password" placeholder="Your password" value={password}
+              onChange={e => { setPassword(e.target.value); clearError(); }} required autoComplete="current-password"
+              className="login-input w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <button type="submit" disabled={loading}
+            className="login-btn w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-all flex items-center justify-center gap-2">
+            {loading ? <><span className="login-spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Signing In…</span></> : <span>Sign In</span>}
+          </button>
+        </form>
 
         <p className="login-register-hint text-center text-sm text-gray-600 mt-6">
           Don&apos;t have an account?{' '}
