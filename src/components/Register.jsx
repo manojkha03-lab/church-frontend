@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
-import { auth, RecaptchaVerifier, signInWithPhoneNumber, isFirebaseConfigured, missingFirebaseKeys } from '../config/firebase';
+import { auth, RecaptchaVerifier, signInWithPhoneNumber, isFirebaseConfigured } from '../config/firebase';
 
 // ─── 6-box OTP input component ───────────────────────────────────────────────
 const OtpInput = ({ value, onChange, disabled }) => {
@@ -117,10 +117,7 @@ const Register = () => {
 
   const ensureFirebase = () => {
     if (isFirebaseConfigured && auth) return true;
-    const hint = missingFirebaseKeys.length
-      ? ` Missing: ${missingFirebaseKeys.join(', ')}`
-      : '';
-    setError(`Firebase is not configured. Phone OTP registration is unavailable.${hint}`);
+    setError('Phone OTP is temporarily unavailable. Please try again later or contact admin.');
     return false;
   };
 

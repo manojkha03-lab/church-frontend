@@ -1,6 +1,19 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import {
+  getAuth,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from 'firebase/auth';
 
+// ── Firebase client config ──────────────────────────────────────────────────
+// Values come from environment variables (Vite injects VITE_* at build time).
+// Set these in frontend/.env for local dev AND in Vercel Environment Variables
+// for production.  Get the values from:
+//   Firebase Console → Project Settings → General → Your apps → Web app → Config
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -10,9 +23,10 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Check which keys are missing (empty / undefined)
 const missingFirebaseKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => !value)
-  .map(([key]) => key);
+  .filter(([, v]) => !v)
+  .map(([k]) => k);
 
 let app = null;
 let auth = null;
@@ -23,9 +37,8 @@ if (missingFirebaseKeys.length === 0) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Ensure auth.settings exists (Firebase SDK reads this internally for
-    // RecaptchaVerifier — if the object is incomplete it throws
-    // "Cannot read properties of null (reading 'settings')").
+    // Firebase SDK internally accesses auth.settings for RecaptchaVerifier.
+    // Guard against it being null (causes "Cannot read properties of null").
     if (auth && !auth.settings) {
       auth.settings = {};
     }
@@ -36,7 +49,9 @@ if (missingFirebaseKeys.length === 0) {
   }
 } else {
   console.warn(
-    `Firebase env is incomplete. Missing keys: ${missingFirebaseKeys.join(', ')}`
+    'Firebase config incomplete — missing:',
+    missingFirebaseKeys.join(', '),
+    '\nPhone OTP, Google sign-in, and email sign-in are disabled.',
   );
 }
 

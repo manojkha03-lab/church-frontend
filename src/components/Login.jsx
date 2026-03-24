@@ -6,7 +6,7 @@ import {
   auth, googleProvider, signInWithPopup,
   signInWithPhoneNumber, RecaptchaVerifier,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  isFirebaseConfigured, missingFirebaseKeys,
+  isFirebaseConfigured,
 } from '../config/firebase';
 
 // ─── 6-box OTP input ──────────────────────────────────────────────────────────
@@ -59,10 +59,7 @@ const Login = () => {
 
   const ensureFirebaseReady = () => {
     if (isFirebaseConfigured && auth) return true;
-    const missingHint = missingFirebaseKeys.length
-      ? ` Missing: ${missingFirebaseKeys.join(', ')}`
-      : '';
-    setError(`Firebase sign-in is not configured.${missingHint}`);
+    setError('Firebase sign-in is temporarily unavailable. Use the Password tab or contact admin.');
     return false;
   };
 
