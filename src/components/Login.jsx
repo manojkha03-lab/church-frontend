@@ -6,7 +6,7 @@ import {
   auth, googleProvider, signInWithPopup,
   signInWithPhoneNumber, RecaptchaVerifier,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  isFirebaseConfigured,
+  isFirebaseConfigured, firebaseStatus,
 } from '../config/firebase';
 
 // ─── 6-box OTP input ──────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ const OtpInput = ({ value, onChange, disabled }) => {
 };
 
 const Login = () => {
-  const [tab, setTab] = useState(isFirebaseConfigured ? 'email' : 'password'); // 'email' | 'phone' | 'password'
+  const [tab, setTab] = useState(isFirebaseConfigured ? 'email' : 'password');
   // Email (Firebase)
   const [email, setEmail] = useState('');
   const [emailPw, setEmailPw] = useState('');
@@ -42,6 +42,7 @@ const Login = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [confirmResult, setConfirmResult] = useState(null);
   const [resendTimer, setResendTimer] = useState(0);
+  const [phoneOtpDisabled, setPhoneOtpDisabled] = useState(false);
   // Legacy name+password
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -57,10 +58,32 @@ const Login = () => {
   const clearError = () => { setError(''); setPendingApproval(false); };
   const anyLoading = loading || googleLoading;
 
+  // Firebase error code → user-friendly message
+  const otpErrorMessage = (err) => {
+    const code = err?.code || '';
+    if (code === 'auth/too-many-requests')      return 'Too many OTP requests. Please wait a few minutes.';
+    if (code === 'auth/quota-exceeded')          return 'Daily OTP limit reached. Try again tomorrow.';
+    if (code === 'auth/invalid-phone-number')    return 'Invalid phone number. Enter a valid 10-digit number.';
+    if (code === 'auth/captcha-check-failed')    return 'reCAPTCHA failed. Please reload the page.';
+    if (code === 'auth/network-request-failed')  return 'Network error. Check your connection.';
+    if (code === 'auth/invalid-verification-code') return 'Invalid OTP. Check and try again.';
+    if (code === 'auth/code-expired')            return 'OTP expired. Request a new one.';
+    if (code === 'auth/operation-not-allowed')   return 'Phone sign-in is disabled. Contact admin.';
+    if (code === 'auth/missing-phone-provider')  return 'Phone auth not enabled. Contact admin.';
+    return err?.message || 'OTP failed. Please try again.';
+  };
+
   const ensureFirebaseReady = () => {
     if (isFirebaseConfigured && auth) return true;
-    setError('Firebase sign-in is temporarily unavailable. Use the Password tab or contact admin.');
+    setError('Firebase sign-in is unavailable. Use the Password tab to sign in.');
     return false;
+  };
+
+  const resetRecaptcha = () => {
+    if (recaptchaRef.current) {
+      try { recaptchaRef.current.clear(); } catch {}
+      recaptchaRef.current = null;
+    }
   };
 
   // Resend countdown
@@ -104,16 +127,13 @@ const Login = () => {
   // ── Phone OTP (Firebase) ──
   const setupRecaptcha = useCallback(() => {
     if (recaptchaRef.current) return;
-    if (!auth) {
-      console.warn('setupRecaptcha: auth is null, skipping');
-      return;
-    }
+    if (!auth) return;
     try {
       recaptchaRef.current = new RecaptchaVerifier(auth, 'login-recaptcha', { size: 'invisible', callback: () => {} });
     } catch (err) {
       console.error('RecaptchaVerifier init failed:', err);
       recaptchaRef.current = null;
-      throw new Error('Phone verification setup failed. Please reload the page and try again.');
+      throw new Error('Phone verification setup failed. Please reload the page.');
     }
   }, []);
 
@@ -125,29 +145,49 @@ const Login = () => {
       const r = await signInWithPhoneNumber(auth, '+91' + phone, recaptchaRef.current);
       setConfirmResult(r); setOtpSent(true); setResendTimer(30);
     } catch (err) {
-      setError(err.code === 'auth/too-many-requests' ? 'Too many attempts. Wait and retry.' : (err.code === 'auth/invalid-phone-number' ? 'Invalid phone number.' : err.message));
-      if (recaptchaRef.current) { try { recaptchaRef.current.clear(); } catch {} recaptchaRef.current = null; }
+      console.error('Phone OTP error:', err?.code, err?.message, err);
+      const msg = otpErrorMessage(err);
+      const isQuotaOrConfig = ['auth/too-many-requests', 'auth/quota-exceeded',
+        'auth/operation-not-allowed', 'auth/missing-phone-provider'].includes(err?.code);
+      if (isQuotaOrConfig) {
+        setPhoneOtpDisabled(true);
+        setError(msg + ' Use the Password tab instead.');
+        setTab('password');
+      } else {
+        setError(msg);
+      }
+      resetRecaptcha();
     } finally { setLoading(false); }
   };
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault(); if (otp.length !== 6) { setError('Enter all 6 digits.'); return; }
     clearError(); setLoading(true);
-    if (!ensureFirebaseReady()) { setLoading(false); return; }
+    if (!confirmResult) { setError('OTP session expired. Go back and resend.'); setLoading(false); return; }
     try { const r = await confirmResult.confirm(otp); await sendTokenToBackend(await r.user.getIdToken()); }
-    catch (err) { setError(err.code === 'auth/invalid-verification-code' ? 'Invalid OTP. Check and try again.' : err.message); }
+    catch (err) { console.error('OTP verify error:', err?.code, err); setError(otpErrorMessage(err)); }
     finally { setLoading(false); }
   };
 
   const handleResendOtp = async () => {
     clearError(); setLoading(true);
-    if (!ensureFirebaseReady()) { setLoading(false); return; }
     try {
-      if (recaptchaRef.current) { try { recaptchaRef.current.clear(); } catch {} recaptchaRef.current = null; }
+      resetRecaptcha();
       setupRecaptcha();
       const r = await signInWithPhoneNumber(auth, '+91' + phone, recaptchaRef.current);
       setConfirmResult(r); setOtp(''); setResendTimer(30);
-    } catch (err) { setError(err.message); }
+    } catch (err) {
+      console.error('OTP resend error:', err?.code, err);
+      const msg = otpErrorMessage(err);
+      if (['auth/too-many-requests', 'auth/quota-exceeded'].includes(err?.code)) {
+        setPhoneOtpDisabled(true);
+        setError(msg + ' Use the Password tab instead.');
+        setTab('password');
+      } else {
+        setError(msg);
+      }
+      resetRecaptcha();
+    }
     finally { setLoading(false); }
   };
 
@@ -245,7 +285,10 @@ const Login = () => {
           {isFirebaseConfigured && (
             <>
               <button type="button" style={tabStyle(tab === 'email')} onClick={() => { setTab('email'); clearError(); }}>Email</button>
-              <button type="button" style={tabStyle(tab === 'phone')} onClick={() => { setTab('phone'); clearError(); setOtpSent(false); setOtp(''); }}>Phone OTP</button>
+              <button type="button" style={{...tabStyle(tab === 'phone'), ...(phoneOtpDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {})}}
+                onClick={() => { if (!phoneOtpDisabled) { setTab('phone'); clearError(); setOtpSent(false); setOtp(''); } }}
+                disabled={phoneOtpDisabled}
+                title={phoneOtpDisabled ? 'Phone OTP temporarily disabled due to rate limit' : ''}>Phone OTP</button>
             </>
           )}
           <button type="button" style={tabStyle(tab === 'password')} onClick={() => { setTab('password'); clearError(); }}>Password</button>

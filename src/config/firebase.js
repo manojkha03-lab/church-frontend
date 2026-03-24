@@ -10,9 +10,9 @@ import {
 } from 'firebase/auth';
 
 // ── Firebase client config ──────────────────────────────────────────────────
-// Values come from environment variables (Vite injects VITE_* at build time).
-// Set these in frontend/.env for local dev AND in Vercel Environment Variables
-// for production.  Get the values from:
+// Vite injects VITE_* env vars at build time.
+// Set them in frontend/.env (local) AND Vercel Environment Variables (prod).
+// Get the values from:
 //   Firebase Console → Project Settings → General → Your apps → Web app → Config
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,7 +23,7 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Check which keys are missing (empty / undefined)
+// Diagnostics — which keys are missing?
 const missingFirebaseKeys = Object.entries(firebaseConfig)
   .filter(([, v]) => !v)
   .map(([k]) => k);
@@ -38,7 +38,7 @@ if (missingFirebaseKeys.length === 0) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     // Firebase SDK internally accesses auth.settings for RecaptchaVerifier.
-    // Guard against it being null (causes "Cannot read properties of null").
+    // Guard against null (causes "Cannot read properties of null").
     if (auth && !auth.settings) {
       auth.settings = {};
     }
@@ -51,11 +51,29 @@ if (missingFirebaseKeys.length === 0) {
   console.warn(
     'Firebase config incomplete — missing:',
     missingFirebaseKeys.join(', '),
-    '\nPhone OTP, Google sign-in, and email sign-in are disabled.',
+    '\nSet VITE_FIREBASE_* in .env (local) and Vercel env vars (production).',
   );
 }
 
 const isFirebaseConfigured = Boolean(auth);
+
+// Human-readable status for UI diagnostics
+const firebaseStatus = {
+  configured: isFirebaseConfigured,
+  missingKeys: missingFirebaseKeys,
+  initError: firebaseInitError,
+  get reason() {
+    if (isFirebaseConfigured) return null;
+    if (missingFirebaseKeys.length > 0) {
+      return `Firebase environment variables not set: ${missingFirebaseKeys.join(', ')}. ` +
+        'Admin must add VITE_FIREBASE_* values in the .env file and Vercel dashboard.';
+    }
+    if (firebaseInitError) {
+      return `Firebase failed to initialize: ${firebaseInitError.message}`;
+    }
+    return 'Firebase auth is unavailable (unknown reason).';
+  },
+};
 
 export {
   auth,
@@ -69,4 +87,5 @@ export {
   isFirebaseConfigured,
   missingFirebaseKeys,
   firebaseInitError,
+  firebaseStatus,
 };

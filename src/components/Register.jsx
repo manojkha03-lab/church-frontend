@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
-import { auth, RecaptchaVerifier, signInWithPhoneNumber, isFirebaseConfigured } from '../config/firebase';
+import {
+  auth, RecaptchaVerifier, signInWithPhoneNumber,
+  isFirebaseConfigured, firebaseStatus,
+} from '../config/firebase';
 
 // ─── 6-box OTP input component ───────────────────────────────────────────────
 const OtpInput = ({ value, onChange, disabled }) => {
@@ -78,6 +81,8 @@ const Register = () => {
   const [visible, setVisible]         = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [confirmResult, setConfirmResult] = useState(null);
+  // When OTP fails (quota, config, etc.) user can fall back to direct registration
+  const [otpDisabled, setOtpDisabled] = useState(!isFirebaseConfigured);
 
   const navigate  = useNavigate();
   const firstRef  = useRef(null);
@@ -115,21 +120,27 @@ const Register = () => {
 
   const clearError = () => setError('');
 
-  const ensureFirebase = () => {
-    if (isFirebaseConfigured && auth) return true;
-    setError('Phone OTP is temporarily unavailable. Please try again later or contact admin.');
-    return false;
+  // ── Firebase OTP helpers ────────────────────────────────────────────────────
+
+  // Map Firebase error codes to user-friendly messages
+  const otpErrorMessage = (err) => {
+    const code = err?.code || '';
+    if (code === 'auth/too-many-requests')      return 'Too many OTP requests. Please wait a few minutes and try again.';
+    if (code === 'auth/quota-exceeded')          return 'Daily OTP limit reached. Please try again tomorrow or register with password only.';
+    if (code === 'auth/invalid-phone-number')    return 'Invalid phone number format. Please enter a valid 10-digit number.';
+    if (code === 'auth/captcha-check-failed')    return 'reCAPTCHA verification failed. Please reload the page and try again.';
+    if (code === 'auth/network-request-failed')  return 'Network error. Check your internet connection and try again.';
+    if (code === 'auth/invalid-verification-code') return 'Invalid OTP. Please check and try again.';
+    if (code === 'auth/code-expired')            return 'OTP expired. Please request a new one.';
+    if (code === 'auth/missing-phone-provider')  return 'Phone authentication is not enabled in Firebase. Contact admin.';
+    if (code === 'auth/operation-not-allowed')   return 'Phone sign-in is disabled in Firebase Console. Contact admin.';
+    return err?.message || 'OTP failed. Please try again.';
   };
 
-  // Setup invisible reCAPTCHA (wrapped in try/catch — Firebase SDK crashes
-  // with "Cannot read properties of null (reading 'settings')" if auth
-  // internals aren't fully ready).
+  // Setup invisible reCAPTCHA
   const setupRecaptcha = useCallback(() => {
     if (recaptchaRef.current) return;
-    if (!auth) {
-      console.warn('setupRecaptcha: auth is null, skipping');
-      return;
-    }
+    if (!auth) return;
     try {
       recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
@@ -138,17 +149,52 @@ const Register = () => {
     } catch (err) {
       console.error('RecaptchaVerifier init failed:', err);
       recaptchaRef.current = null;
-      throw new Error('Phone verification setup failed. Please reload the page and try again.');
+      throw new Error('Phone verification setup failed. Please reload the page.');
     }
   }, []);
 
-  // Step 1: Validate → Send Firebase OTP
+  const resetRecaptcha = () => {
+    if (recaptchaRef.current) {
+      try { recaptchaRef.current.clear(); } catch {}
+      recaptchaRef.current = null;
+    }
+  };
+
+  // ── Direct register (password only, no OTP) ────────────────────────────────
+  const handleDirectRegister = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const regRes = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, mobile, password }),
+      });
+      const regData = await regRes.json();
+      if (regRes.ok) {
+        setStep(3);
+      } else {
+        setError(regData.message || 'Registration failed.');
+      }
+    } catch {
+      setError('Network error. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Step 1: Validate → Send Firebase OTP ───────────────────────────────────
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    if (!ensureFirebase()) { setLoading(false); return; }
+    // If OTP is disabled, go straight to direct register
+    if (otpDisabled || !isFirebaseConfigured || !auth) {
+      await handleDirectRegister(e);
+      return;
+    }
 
     try {
       // Check availability on backend first
@@ -166,25 +212,24 @@ const Register = () => {
 
       // Setup reCAPTCHA and send OTP via Firebase
       setupRecaptcha();
-      const phoneNumber = '+91' + mobile; // India country code — adjust as needed
+      const phoneNumber = '+91' + mobile;
       const result = await signInWithPhoneNumber(auth, phoneNumber, recaptchaRef.current);
       setConfirmResult(result);
       setStep(2);
       setResendTimer(30);
     } catch (err) {
-      console.error('Firebase OTP error:', err);
-      if (err.code === 'auth/too-many-requests') {
-        setError('Too many OTP requests. Please wait and try again later.');
-      } else if (err.code === 'auth/invalid-phone-number') {
-        setError('Invalid phone number format.');
+      console.error('Firebase OTP error:', err?.code, err?.message, err);
+      const msg = otpErrorMessage(err);
+      // On quota/config errors, offer fallback
+      const isQuotaOrConfig = ['auth/too-many-requests', 'auth/quota-exceeded',
+        'auth/operation-not-allowed', 'auth/missing-phone-provider'].includes(err?.code);
+      if (isQuotaOrConfig) {
+        setOtpDisabled(true);
+        setError(msg + ' You can register with password only instead.');
       } else {
-        setError(err.message || 'Failed to send OTP. Please try again.');
+        setError(msg);
       }
-      // Reset reCAPTCHA on error
-      if (recaptchaRef.current) {
-        try { recaptchaRef.current.clear(); } catch {}
-        recaptchaRef.current = null;
-      }
+      resetRecaptcha();
     } finally {
       setLoading(false);
     }
@@ -193,20 +238,14 @@ const Register = () => {
   // Step 2: Verify OTP via Firebase → Register on backend
   const handleVerifyAndRegister = async (e) => {
     e.preventDefault();
-    if (otp.length !== 6) {
-      setError('Please enter all 6 digits.');
-      return;
-    }
+    if (otp.length !== 6) { setError('Please enter all 6 digits.'); return; }
     setError('');
     setLoading(true);
 
-    if (!ensureFirebase()) { setLoading(false); return; }
     if (!confirmResult) { setError('OTP session expired. Please go back and resend.'); setLoading(false); return; }
 
     try {
-      // Verify OTP with Firebase
       await confirmResult.confirm(otp);
-
       // OTP verified — register user on backend
       const regRes = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
@@ -215,17 +254,13 @@ const Register = () => {
       });
       const regData = await regRes.json();
       if (regRes.ok) {
-        setStep(3); // Show pending approval screen
+        setStep(3);
       } else {
         setError(regData.message || 'Registration failed.');
       }
     } catch (err) {
-      console.error('OTP verify error:', err);
-      if (err.code === 'auth/invalid-verification-code') {
-        setError('Invalid OTP. Please check and try again.');
-      } else {
-        setError(err.message || 'Verification failed. Please try again.');
-      }
+      console.error('OTP verify error:', err?.code, err);
+      setError(otpErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -235,13 +270,8 @@ const Register = () => {
   const handleResendOtp = async () => {
     setError('');
     setLoading(true);
-    if (!ensureFirebase()) { setLoading(false); return; }
     try {
-      // Reset reCAPTCHA
-      if (recaptchaRef.current) {
-        try { recaptchaRef.current.clear(); } catch {}
-        recaptchaRef.current = null;
-      }
+      resetRecaptcha();
       setupRecaptcha();
       const phoneNumber = '+91' + mobile;
       const result = await signInWithPhoneNumber(auth, phoneNumber, recaptchaRef.current);
@@ -249,11 +279,15 @@ const Register = () => {
       setOtp('');
       setResendTimer(30);
     } catch (err) {
-      setError(err.message || 'Failed to resend OTP.');
-      if (recaptchaRef.current) {
-        try { recaptchaRef.current.clear(); } catch {}
-        recaptchaRef.current = null;
+      console.error('OTP resend error:', err?.code, err);
+      const msg = otpErrorMessage(err);
+      if (['auth/too-many-requests', 'auth/quota-exceeded'].includes(err?.code)) {
+        setOtpDisabled(true);
+        setError(msg + ' You can register with password only instead.');
+      } else {
+        setError(msg);
       }
+      resetRecaptcha();
     } finally {
       setLoading(false);
     }
@@ -386,16 +420,23 @@ const Register = () => {
               {/* Invisible reCAPTCHA container */}
               <div id="recaptcha-container" />
 
-              {/* Submit - Send OTP */}
+              {/* OTP unavailable notice */}
+              {otpDisabled && (
+                <div style={{ padding: '0.75rem', borderRadius: 8, border: '1px solid #fbbf24', background: '#fffbeb', color: '#92400e', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                  <strong>Phone OTP is unavailable.</strong> You will be registered with password only. OTP verification will be skipped.
+                </div>
+              )}
+
+              {/* Submit */}
               <button type="submit" className="reg-btn" disabled={loading}>
                 {loading ? (
                   <>
                     <span className="reg-spinner" aria-hidden="true" />
-                    Sending OTP&hellip;
+                    {otpDisabled ? 'Creating Account\u2026' : 'Sending OTP\u2026'}
                   </>
                 ) : (
                   <>
-                    <span>Send OTP</span>
+                    <span>{otpDisabled ? 'Create Account' : 'Send OTP'}</span>
                     <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
                       <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
