@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 import { API_URL } from '../config/api';
 
-const SHEET_API = 'https://script.google.com/macros/s/AKfycbx93f9Sl6DslSWhsumC9XqYPg1cxsAH1atVgfPATngvRUg0LJCYpfDFhmo39zTxGN4Dvw/exec';
+const SHEET_API = import.meta.env.VITE_SHEET_API_URL || '';
 
 const normalizeSheetData = (payload) => {
   if (Array.isArray(payload)) return payload;
@@ -13,6 +13,7 @@ const normalizeSheetData = (payload) => {
 };
 
 const fetchSheetData = async () => {
+  if (!SHEET_API) return [];
   try {
     const res = await fetch(SHEET_API, { cache: 'no-store' });
     if (!res.ok) {
