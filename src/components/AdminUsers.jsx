@@ -35,56 +35,72 @@ const AdminUsers = () => {
   };
 
   const handleApprove = async (id) => {
-    const res = await fetch(`${API_URL}/api/admin/approve/${id}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setUsers(users.map(u => u._id === id ? { ...u, status: 'approved' } : u));
-      toast.success('User approved');
-    } else {
-      toast.error('Failed to approve user');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/approve/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(users.map(u => u._id === id ? { ...u, status: 'approved' } : u));
+        toast.success('User approved');
+      } else {
+        toast.error('Failed to approve user');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleReject = async (id) => {
-    const res = await fetch(`${API_URL}/api/admin/reject/${id}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setUsers(users.map(u => u._id === id ? { ...u, status: 'rejected' } : u));
-      toast.success('User rejected');
-    } else {
-      toast.error('Failed to reject user');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/reject/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(users.map(u => u._id === id ? { ...u, status: 'rejected' } : u));
+        toast.success('User rejected');
+      } else {
+        toast.error('Failed to reject user');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleRoleChange = async (id, newRole) => {
-    const endpoint = newRole === 'admin' ? `${API_URL}/api/admin/promote/${id}` : `${API_URL}/api/admin/demote/${id}`;
-    const res = await fetch(endpoint, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setUsers(users.map(u => u._id === id ? { ...u, role: newRole } : u));
-      toast.success('Role updated');
-    } else {
-      toast.error('Failed to update role');
+    try {
+      const endpoint = newRole === 'admin' ? `${API_URL}/api/admin/promote/${id}` : `${API_URL}/api/admin/demote/${id}`;
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(users.map(u => u._id === id ? { ...u, role: newRole } : u));
+        toast.success('Role updated');
+      } else {
+        toast.error('Failed to update role');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`${API_URL}/api/admin/delete/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setUsers(users.filter(u => u._id !== id));
-      toast.success('User deleted');
-      setConfirm(null);
-    } else {
-      toast.error('Failed to delete user');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/delete/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(users.filter(u => u._id !== id));
+        toast.success('User deleted');
+        setConfirm(null);
+      } else {
+        toast.error('Failed to delete user');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 

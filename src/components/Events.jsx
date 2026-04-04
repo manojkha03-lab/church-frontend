@@ -6,7 +6,7 @@ const Events = () => {
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/public/events`)
+    fetch(`${API_URL}/api/events`)
       .then(res => res.json())
       .then(data => setEvents(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));

@@ -1,43 +1,19 @@
-import { initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  GoogleAuthProvider,
-  signInWithPopup,
-} from 'firebase/auth';
+// Firebase is disabled in this project. These exports are no-op stubs kept only
+// for backward compatibility with existing imports.
+const auth = null;
+const googleProvider = null;
+const isFirebaseAvailable = false;
 
-// ── Firebase config from env vars (all optional) ────────────────────────────
-const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+const disabled = async () => {
+  throw new Error("Firebase is disabled");
 };
 
-let auth = null;
-let googleProvider = null;
+const RecaptchaVerifier = function DisabledRecaptchaVerifier() {
+  throw new Error("Firebase is disabled");
+};
 
-// Only initialize if ALL keys are present — otherwise Firebase is simply off
-const allKeysPresent = Object.values(firebaseConfig).every(Boolean);
-
-if (allKeysPresent) {
-  try {
-    const app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    if (auth && !auth.settings) auth.settings = {};
-    googleProvider = new GoogleAuthProvider();
-  } catch {
-    // Firebase init failed — app continues without it
-    auth = null;
-    googleProvider = null;
-  }
-}
-
-// true when Firebase SDK initialized successfully
-const isFirebaseAvailable = Boolean(auth);
+const signInWithPhoneNumber = disabled;
+const signInWithPopup = disabled;
 
 export {
   auth,

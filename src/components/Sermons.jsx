@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import { API_URL } from '../config/api';
 
+const toEmbedUrl = (url) => {
+  if (!url) return null;
+  // youtube.com/watch?v=ID or youtu.be/ID → youtube.com/embed/ID
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+  if (match) return `https://www.youtube.com/embed/${match[1]}`;
+  // Already an embed URL or other provider
+  return url;
+};
+
 const Sermons = () => {
   const [sermons, setSermons] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/public/sermons`)
+    fetch(`${API_URL}/api/sermons`)
       .then(res => res.json())
       .then(data => setSermons(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
@@ -28,7 +37,7 @@ const Sermons = () => {
             {sermon.videoUrl ? (
               <div className="records-video-wrap">
                 <iframe
-                  src={sermon.videoUrl}
+                  src={toEmbedUrl(sermon.videoUrl)}
                   title={sermon.title}
                   allowFullScreen
                   loading="lazy"

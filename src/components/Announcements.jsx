@@ -4,10 +4,15 @@ import { API_URL } from '../config/api';
 const Announcements = () => {
   const [announcements, setAnnouncements] = useState([]);
 
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   useEffect(() => {
     fetch(`${API_URL}/api/announcements`)
       .then(res => res.json())
-      .then(setAnnouncements);
+      .then(data => setAnnouncements(Array.isArray(data) ? data : []))
+      .catch(() => setError('Failed to load announcements'))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -18,7 +23,15 @@ const Announcements = () => {
         <p style={{ color: 'var(--text-muted)' }}>Stay informed with the latest news and updates from the church.</p>
       </section>
 
-      {announcements.length === 0 ? (
+      {loading ? (
+        <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+          <p style={{ color: 'var(--text-muted)' }}>Loading announcements...</p>
+        </div>
+      ) : error ? (
+        <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+          <p style={{ color: 'red' }}>{error}</p>
+        </div>
+      ) : announcements.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
           <p style={{ color: 'var(--text-muted)' }}>No announcements at this time.</p>
         </div>

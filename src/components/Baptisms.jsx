@@ -22,12 +22,16 @@ const Baptisms = () => {
   }, [token]);
 
   const fetchBaptisms = async () => {
-    const res = await fetch(`${API_URL}/api/baptisms`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setBaptisms(data);
+    try {
+      const res = await fetch(`${API_URL}/api/baptisms`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBaptisms(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      console.error('Failed to load baptisms');
     }
   };
 

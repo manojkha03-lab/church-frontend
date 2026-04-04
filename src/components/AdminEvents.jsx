@@ -20,43 +20,55 @@ const AdminEvents = () => {
     capacity: 0,
   });
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     if (user?.role !== 'admin') return;
     fetch(`${API_URL}/api/events`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(setEvents);
+      .then(data => setEvents(Array.isArray(data) ? data : []))
+      .catch(() => toast.error('Failed to load events'))
+      .finally(() => setLoading(false));
   }, [user, token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_URL}/api/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(formData),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setEvents([...events, data.event]);
-      setFormData({ title: '', description: '', location: '', startDate: '', endDate: '', capacity: 0 });
-      setShowForm(false);
-      toast.success('Event created');
-    } else {
-      const error = await res.json();
-      toast.error(error.message || 'Failed to create event');
+    try {
+      const res = await fetch(`${API_URL}/api/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEvents([...events, data.event]);
+        setFormData({ title: '', description: '', location: '', startDate: '', endDate: '', capacity: 0 });
+        setShowForm(false);
+        toast.success('Event created');
+      } else {
+        const error = await res.json();
+        toast.error(error.message || 'Failed to create event');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`${API_URL}/api/events/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setEvents(events.filter(e => e._id !== id));
-      toast.success('Event deleted');
-    } else {
-      const error = await res.json();
-      toast.error(error.message || 'Failed to delete event');
+    try {
+      const res = await fetch(`${API_URL}/api/events/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setEvents(events.filter(e => e._id !== id));
+        toast.success('Event deleted');
+      } else {
+        const error = await res.json();
+        toast.error(error.message || 'Failed to delete event');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 

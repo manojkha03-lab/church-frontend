@@ -19,43 +19,55 @@ const AdminSermons = () => {
     notes: '',
   });
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     if (user?.role !== 'admin') return;
     fetch(`${API_URL}/api/sermons`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(setSermons);
+      .then(data => setSermons(Array.isArray(data) ? data : []))
+      .catch(() => toast.error('Failed to load sermons'))
+      .finally(() => setLoading(false));
   }, [user, token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_URL}/api/sermons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(formData),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setSermons([...sermons, data.sermon]);
-      setFormData({ title: '', speaker: '', date: '', videoUrl: '', notes: '' });
-      setShowForm(false);
-      toast.success('Sermon added');
-    } else {
-      const error = await res.json();
-      toast.error(error.message || 'Failed to add sermon');
+    try {
+      const res = await fetch(`${API_URL}/api/sermons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSermons([...sermons, data.sermon]);
+        setFormData({ title: '', speaker: '', date: '', videoUrl: '', notes: '' });
+        setShowForm(false);
+        toast.success('Sermon added');
+      } else {
+        const error = await res.json();
+        toast.error(error.message || 'Failed to add sermon');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`${API_URL}/api/sermons/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setSermons(sermons.filter(s => s._id !== id));
-      toast.success('Sermon deleted');
-    } else {
-      const error = await res.json();
-      toast.error(error.message || 'Failed to delete sermon');
+    try {
+      const res = await fetch(`${API_URL}/api/sermons/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setSermons(sermons.filter(s => s._id !== id));
+        toast.success('Sermon deleted');
+      } else {
+        const error = await res.json();
+        toast.error(error.message || 'Failed to delete sermon');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 

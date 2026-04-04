@@ -22,12 +22,16 @@ const Sacraments = () => {
   }, [token]);
 
   const fetchSacraments = async () => {
-    const res = await fetch(`${API_URL}/api/sacraments`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setSacraments(data);
+    try {
+      const res = await fetch(`${API_URL}/api/sacraments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSacraments(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      console.error('Failed to load sacraments');
     }
   };
 

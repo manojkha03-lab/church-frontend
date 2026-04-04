@@ -24,12 +24,16 @@ const Marriages = () => {
   }, [token]);
 
   const fetchMarriages = async () => {
-    const res = await fetch(`${API_URL}/api/marriages`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setMarriages(data);
+    try {
+      const res = await fetch(`${API_URL}/api/marriages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMarriages(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      console.error('Failed to load marriages');
     }
   };
 

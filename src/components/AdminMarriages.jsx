@@ -52,12 +52,16 @@ const AdminMarriages = () => {
   }, [marriages, searchTerm, filterYear]);
 
   const fetchMarriages = async () => {
-    const res = await fetch(`${API_URL}/api/marriages`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setMarriages(data);
+    try {
+      const res = await fetch(`${API_URL}/api/marriages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMarriages(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      toast.error('Failed to load marriage records');
     }
   };
 
@@ -79,33 +83,41 @@ const AdminMarriages = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_URL}/api/marriages/${editing}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(formData)
-    });
-    if (res.ok) {
-      setEditing(null);
-      fetchMarriages();
-      toast.success('Marriage record updated');
-    } else {
-      toast.error('Failed to update marriage record');
+    try {
+      const res = await fetch(`${API_URL}/api/marriages/${editing}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setEditing(null);
+        fetchMarriages();
+        toast.success('Marriage record updated');
+      } else {
+        toast.error('Failed to update marriage record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`${API_URL}/api/marriages/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      toast.success('Marriage record deleted');
-      fetchMarriages();
-    } else {
-      toast.error('Failed to delete marriage record');
+    try {
+      const res = await fetch(`${API_URL}/api/marriages/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Marriage record deleted');
+        fetchMarriages();
+      } else {
+        toast.error('Failed to delete marriage record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 

@@ -96,16 +96,28 @@ const Register = () => {
 
   // ── Direct register (always works, no OTP) ───────────────────────────────
   const registerOnBackend = async () => {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), mobile, password }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setStep(3);
-    } else {
-      setError(data.message || 'Registration failed.');
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), mobile, password }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const data = await res.json();
+      if (res.ok) {
+        setStep(3);
+      } else {
+        setError(data.message || data.error || 'Registration failed.');
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError('Network error. Please check your connection and try again.');
+      }
     }
   };
 
@@ -140,10 +152,14 @@ const Register = () => {
       setConfirmResult(result);
       setStep(2);
       setResendTimer(30);
-    } catch {
+    } catch (err) {
       // OTP failed — fall back to direct registration (never block)
       resetRecaptcha();
-      await registerOnBackend();
+      try {
+        await registerOnBackend();
+      } catch {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -161,7 +177,11 @@ const Register = () => {
       await registerOnBackend();
     } catch {
       // OTP verify failed — register directly anyway
-      await registerOnBackend();
+      try {
+        await registerOnBackend();
+      } catch {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -198,6 +218,14 @@ const Register = () => {
     }
   };
 
+  // Auto-redirect to login after registration success
+  useEffect(() => {
+    if (step === 3) {
+      const id = setTimeout(() => navigate('/login'), 2000);
+      return () => clearTimeout(id);
+    }
+  }, [step, navigate]);
+
   return (
     <div
       className={`reg-overlay${visible ? ' reg-overlay--in' : ''}`}
@@ -222,9 +250,9 @@ const Register = () => {
             <h2 className="reg-success-title">Registration Successful!</h2>
             <p className="reg-success-sub" style={{ color: '#6b7280', lineHeight: 1.6 }}>
               Your account has been created and is now
-              <strong style={{ color: '#d97706' }}> pending admin approval</strong>.
-              <br />
-              You will be able to log in once an administrator approves your account.
+              <strong style={{ color: '#d97706' }}> pending admin approval</strong>.<br />
+              You will be able to log in once an administrator approves your account.<br />
+              <span style={{ color: '#10b981', fontWeight: 600 }}>Redirecting to login…</span>
             </p>
             <Link to="/login" className="reg-btn" style={{ display: 'inline-flex', marginTop: '1rem', textDecoration: 'none' }}>
               Go to Login

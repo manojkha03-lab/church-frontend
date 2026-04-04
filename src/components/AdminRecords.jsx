@@ -10,8 +10,6 @@ const AdminRecords = () => {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  if (user?.role !== 'admin') return <Navigate to="/" />;
-
   const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
@@ -36,6 +34,8 @@ const AdminRecords = () => {
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  if (user?.role !== 'admin') return <Navigate to="/" />;
 
   return (
     <div className="admin-container">

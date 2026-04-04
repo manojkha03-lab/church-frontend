@@ -51,12 +51,16 @@ const AdminBaptisms = () => {
   }, [baptisms, searchTerm, filterYear]);
 
   const fetchBaptisms = async () => {
-    const res = await fetch(`${API_URL}/api/baptisms`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setBaptisms(data);
+    try {
+      const res = await fetch(`${API_URL}/api/baptisms`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBaptisms(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      toast.error('Failed to load baptism records');
     }
   };
 
@@ -76,33 +80,41 @@ const AdminBaptisms = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_URL}/api/baptisms/${editing}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(formData)
-    });
-    if (res.ok) {
-      setEditing(null);
-      fetchBaptisms();
-      toast.success('Baptism record updated');
-    } else {
-      toast.error('Failed to update baptism record');
+    try {
+      const res = await fetch(`${API_URL}/api/baptisms/${editing}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setEditing(null);
+        fetchBaptisms();
+        toast.success('Baptism record updated');
+      } else {
+        toast.error('Failed to update baptism record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`${API_URL}/api/baptisms/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      toast.success('Baptism record deleted');
-      fetchBaptisms();
-    } else {
-      toast.error('Failed to delete baptism record');
+    try {
+      const res = await fetch(`${API_URL}/api/baptisms/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Baptism record deleted');
+        fetchBaptisms();
+      } else {
+        toast.error('Failed to delete baptism record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 

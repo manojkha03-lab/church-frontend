@@ -1,38 +1,40 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+
+// ─── Page components ──────────────────────────────────────────────────────────
+import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
-import Home from './components/Home';
-import MemberDashboard from './components/MemberDashboard';
+import Waiting from './components/Waiting';
+import Profile from './components/Profile';
 import Events from './components/Events';
 import Sermons from './components/Sermons';
+import Contact from './components/Contact';
 import Announcements from './components/Announcements';
 import Donations from './components/Donations';
 import PrayerRequests from './components/PrayerRequests';
-import Profile from './components/Profile';
+import Baptisms from './components/Baptisms';
+import Marriages from './components/Marriages';
+import Sacraments from './components/Sacraments';
+import MemberDashboard from './components/MemberDashboard';
+import MemberDirectory from './components/MemberDirectory';
 import AdminDashboard from './components/AdminDashboard';
 import AdminEvents from './components/AdminEvents';
 import AdminSermons from './components/AdminSermons';
 import AdminAnnouncements from './components/AdminAnnouncements';
-import Baptisms from './components/Baptisms';
-import Marriages from './components/Marriages';
-import Sacraments from './components/Sacraments';
+import AdminPrayerRequests from './components/AdminPrayerRequests';
+import AdminDonations from './components/AdminDonations';
 import AdminBaptisms from './components/AdminBaptisms';
 import AdminMarriages from './components/AdminMarriages';
 import AdminSacraments from './components/AdminSacraments';
-import MemberDirectory from './components/MemberDirectory';
 import AdminUsers from './components/AdminUsers';
-import AdminPrayerRequests from './components/AdminPrayerRequests';
-import AdminDonations from './components/AdminDonations';
 import AdminRecords from './components/AdminRecords';
-import Contact from './components/Contact';
-import Waiting from './components/Waiting';
 
-// ─── Icon helper ─────────────────────────────────────────────────────────────
+// ─── SVG icon helper ──────────────────────────────────────────────────────────
 const NavIcon = ({ d }) => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d={d} />
   </svg>
@@ -57,7 +59,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{ background: 'orange', color: 'black', padding: '20px', margin: '20px', border: '2px solid red' }}>
-          <h2>⚠️ Component Error</h2>
+          <h2>Component Error</h2>
           <p>A component failed to load: {this.state.error?.message}</p>
           <button onClick={() => this.setState({ hasError: false, error: null })}>
             Try Again
@@ -65,11 +67,11 @@ class ErrorBoundary extends React.Component {
         </div>
       );
     }
-
     return this.props.children;
   }
 }
 
+// ─── Route guards ─────────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
   const { token, authLoading } = useAuth();
   if (authLoading) {
@@ -91,8 +93,6 @@ const RoleRoute = ({ children, allowedRole }) => {
 
   const effectiveRole = user?.role || role || localStorage.getItem('role');
 
-  // If no role can be determined after loading is done, redirect to login
-  // to prevent infinite "Loading account..." stuck screen
   if (!effectiveRole) {
     return <Navigate to="/login" replace />;
   }
@@ -112,6 +112,7 @@ const RoleRoute = ({ children, allowedRole }) => {
 const AdminRoute = ({ children }) => <RoleRoute allowedRole="admin">{children}</RoleRoute>;
 const MemberRoute = ({ children }) => <RoleRoute allowedRole="member">{children}</RoleRoute>;
 
+// ─── Routes ───────────────────────────────────────────────────────────────────
 const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<Home />} />
@@ -155,18 +156,18 @@ const AppRoutes = () => (
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const sidebarLinks = [
-  { to: '/member/dashboard',label: 'Dashboard',    d: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z', auth: true },
-  { to: '/announcements',   label: 'Announcements',d: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z' },
-  { to: '/events',          label: 'Events',       d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { to: '/sermons',         label: 'Sermons',      d: 'M15 10l4.553-2.069A1 1 0 0121 8.82V15.18a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z' },
+  { to: '/member/dashboard', label: 'Dashboard', d: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z', auth: true },
+  { to: '/announcements', label: 'Announcements', d: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z' },
+  { to: '/events', label: 'Events', d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { to: '/sermons', label: 'Sermons', d: 'M15 10l4.553-2.069A1 1 0 0121 8.82V15.18a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z' },
   { to: '/prayer-requests', label: 'Prayer Requests', d: 'M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z' },
-  { to: '/donations',       label: 'Donations',    d: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { to: '/donations', label: 'Donations', d: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
 ];
 const sacramentLinks = [
-  { to: '/baptisms',  label: 'Baptisms',  d: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z' },
+  { to: '/baptisms', label: 'Baptisms', d: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z' },
   { to: '/marriages', label: 'Marriages', d: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
-  { to: '/sacraments',label: 'Sacraments',d: 'M12 2v20M2 12h20' },
-  { to: '/members',   label: 'Members',   d: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
+  { to: '/sacraments', label: 'Sacraments', d: 'M12 2v20M2 12h20' },
+  { to: '/members', label: 'Members', d: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
 ];
 
 const SidebarLink = ({ to, label, d }) => {
@@ -182,7 +183,6 @@ const SidebarLink = ({ to, label, d }) => {
 
 const Sidebar = ({ user, logout }) => (
   <aside className="sidebar">
-    {/* Brand */}
     <div className="sidebar-card">
       <div className="sidebar-header-card">
         <span className="sidebar-cross">✝</span>
@@ -238,27 +238,19 @@ const Sidebar = ({ user, logout }) => (
   </aside>
 );
 
+// ─── App Shell ────────────────────────────────────────────────────────────────
 const AppShell = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const isHomePage     = location.pathname === '/';
+  const isHomePage = location.pathname === '/';
   const isRegisterPage = location.pathname === '/register';
-  const isLoginPage    = location.pathname === '/login';
-  const isPendingPage  = location.pathname === '/pending' || location.pathname === '/waiting';
+  const isLoginPage = location.pathname === '/login';
+  const isPendingPage = location.pathname === '/pending' || location.pathname === '/waiting';
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/member/dashboard';
-  const isAdminPage    = location.pathname.startsWith('/admin');
+  const isAdminPage = location.pathname.startsWith('/admin');
 
-  // Register modal renders as a true overlay on top of everything
   if (isRegisterPage) {
-    return (
-      <>
-        {/* Keep the app visible underneath the modal */}
-        <div className="app-wrapper app-home">
-          <main className="main-content main-content-home" />
-        </div>
-        <AppRoutes />
-      </>
-    );
+    return <AppRoutes />;
   }
 
   const fullWidth = isHomePage || isDashboard || isAdminPage || isLoginPage || isPendingPage;
@@ -273,26 +265,20 @@ const AppShell = () => {
   );
 };
 
-// Main app content that uses useAuth
-const AppContent = () => {
-  return (
-    <ErrorBoundary>
-      <Router>
-        <AppShell />
-      </Router>
-    </ErrorBoundary>
-  );
-};
+const AppContent = () => (
+  <ErrorBoundary>
+    <Router>
+      <AppShell />
+    </Router>
+  </ErrorBoundary>
+);
 
-// Main App component - wraps everything with AuthProvider
-const App = () => {
-  return (
-    <AuthProvider>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
-    </AuthProvider>
-  );
-};
+const App = () => (
+  <AuthProvider>
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  </AuthProvider>
+);
 
 export default App;

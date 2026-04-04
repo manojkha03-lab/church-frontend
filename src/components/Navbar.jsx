@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
+  const { user } = useAuth();
+  const dashboardPath = user?.role === 'admin' ? '/admin/dashboard' : user ? '/member/dashboard' : '/login';
   return (
     <nav className="fixed top-4 left-1/2 transform -translate-x-1/2 w-[90%] bg-white/70 backdrop-blur-md shadow-md rounded-full px-6 py-3 flex justify-between items-center z-50">
 
@@ -25,7 +28,7 @@ const Navbar = () => {
 
       {/* Dashboard */}
       <Link
-        to="/login"
+        to={dashboardPath}
         className="border px-4 py-2 rounded-full text-sm hover:bg-gray-100"
       >
         Dashboard

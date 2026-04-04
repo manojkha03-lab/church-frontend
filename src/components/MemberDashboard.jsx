@@ -42,7 +42,7 @@ const CardHeader = ({ title, sub, to, linkLabel = 'View all →' }) => (
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MemberDashboard = () => {
   const { user, token } = useAuth();
-  const { toast } = useToast();
+  const toast = useToast();
 
   const [events,        setEvents]        = useState([]);
   const [sermons,       setSermons]       = useState([]);

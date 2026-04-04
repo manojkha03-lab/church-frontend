@@ -55,12 +55,16 @@ const AdminSacraments = () => {
   }, [sacraments, searchTerm, filterYear, filterType]);
 
   const fetchSacraments = async () => {
-    const res = await fetch(`${API_URL}/api/sacraments`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setSacraments(data);
+    try {
+      const res = await fetch(`${API_URL}/api/sacraments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSacraments(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      toast.error('Failed to load sacrament records');
     }
   };
 
@@ -80,33 +84,41 @@ const AdminSacraments = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API_URL}/api/sacraments/${editing}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(formData)
-    });
-    if (res.ok) {
-      setEditing(null);
-      fetchSacraments();
-      toast.success('Sacrament record updated');
-    } else {
-      toast.error('Failed to update sacrament record');
+    try {
+      const res = await fetch(`${API_URL}/api/sacraments/${editing}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setEditing(null);
+        fetchSacraments();
+        toast.success('Sacrament record updated');
+      } else {
+        toast.error('Failed to update sacrament record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
   const handleDelete = async (id) => {
-    const res = await fetch(`${API_URL}/api/sacraments/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      toast.success('Sacrament record deleted');
-      fetchSacraments();
-    } else {
-      toast.error('Failed to delete sacrament record');
+    try {
+      const res = await fetch(`${API_URL}/api/sacraments/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Sacrament record deleted');
+        fetchSacraments();
+      } else {
+        toast.error('Failed to delete sacrament record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 

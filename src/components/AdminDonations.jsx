@@ -23,8 +23,6 @@ const AdminDonations = () => {
   const [dateFrom, setDateFrom]   = useState('');
   const [dateTo, setDateTo]       = useState('');
 
-  if (user?.role !== 'admin') return <Navigate to="/" />;
-
   const fetchDonations = useCallback(async () => {
     setLoading(true);
     try {
@@ -52,6 +50,8 @@ const AdminDonations = () => {
   }, [token]);
 
   useEffect(() => { fetchDonations(); fetchUsers(); }, [fetchDonations, fetchUsers]);
+
+  if (user?.role !== 'admin') return <Navigate to="/" />;
 
   const handleAdd = async (e) => {
     e.preventDefault();

@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import AboutSection from "./AboutSection";
 import QuickInfo from "./QuickInfo";
 
 const Home = () => {
+  const navigate = useNavigate();
   return (
     <div className="bg-white text-gray-800">
 
@@ -99,6 +101,7 @@ const Home = () => {
           className="z-10"
         >
           <button
+            onClick={() => navigate('/register')}
             className="mt-12 px-10 py-3 rounded-full text-white font-medium
             bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500
             hover:from-pink-600 hover:via-purple-600 hover:to-indigo-600
