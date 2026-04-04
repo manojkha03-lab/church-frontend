@@ -308,7 +308,7 @@ const Profile = () => {
                   <Icon d={ICONS.donate} size={20} />
                 </div>
                 <div>
-                  <p className="prof-stat-card__val">${totalDonated.toFixed(2)}</p>
+                  <p className="prof-stat-card__val">₹{totalDonated.toFixed(2)}</p>
                   <p className="prof-stat-card__lbl">Total Donated</p>
                 </div>
               </div>
@@ -341,7 +341,7 @@ const Profile = () => {
                 {donations.slice(0, 5).map((d, i) => (
                   <div key={d._id || i} className="prof-donation-row">
                     <div className="prof-donation-row__info">
-                      <p className="prof-donation-row__amount">${(d.amount || 0).toFixed(2)}</p>
+                      <p className="prof-donation-row__amount">₹{(d.amount || 0).toFixed(2)}</p>
                       <p className="prof-donation-row__meta">
                         {d.method ? `${d.method} · ` : ''}
                         {d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}

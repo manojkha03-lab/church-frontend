@@ -101,7 +101,7 @@ const AdminDonations = () => {
         <div className="dash-stat-grid" style={{ marginBottom: '1.5rem' }}>
           <div className="dash-stat-card dash-stat-card--accent">
             <div className="dash-stat-card__body">
-              <span className="dash-stat-card__value">${total.toFixed(2)}</span>
+              <span className="dash-stat-card__value">₹{total.toFixed(2)}</span>
               <span className="dash-stat-card__label">Total (filtered)</span>
             </div>
           </div>
@@ -132,7 +132,7 @@ const AdminDonations = () => {
                 </select>
               </div>
               <div className="admin-form-group">
-                <label>Amount ($)</label>
+                <label>Amount (₹)</label>
                 <input type="number" min="0.01" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="admin-input" placeholder="0.00" required />
               </div>
               <div className="admin-form-group">
@@ -186,7 +186,7 @@ const AdminDonations = () => {
                   <tr key={d._id}>
                     <td>{d.user?.name || 'Unknown'}</td>
                     <td>{d.user?.email || '—'}</td>
-                    <td>${d.amount.toFixed(2)}</td>
+                    <td>₹{d.amount.toFixed(2)}</td>
                     <td><span className="admin-badge admin-badge--method">{d.method}</span></td>
                     <td><span className={`admin-badge admin-badge--${d.status}`}>{d.status}</span></td>
                     <td>{d.note || '—'}</td>

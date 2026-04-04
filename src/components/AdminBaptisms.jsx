@@ -11,10 +11,21 @@ const AdminBaptisms = () => {
   const [baptisms, setBaptisms] = useState([]);
   const [filteredBaptisms, setFilteredBaptisms] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [formData, setFormData] = useState({
+    personName: '',
+    dateOfBirth: '',
+    baptismDate: '',
+    parents: { father: '', mother: '' },
+    godparents: { godfather: '', godmother: '' },
+    priest: '',
+    location: '',
+    notes: ''
+  });
+  const [createData, setCreateData] = useState({
     personName: '',
     dateOfBirth: '',
     baptismDate: '',
@@ -61,6 +72,28 @@ const AdminBaptisms = () => {
       }
     } catch {
       toast.error('Failed to load baptism records');
+    }
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/api/baptisms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(createData)
+      });
+      if (res.ok) {
+        setCreateData({ personName: '', dateOfBirth: '', baptismDate: '', parents: { father: '', mother: '' }, godparents: { godfather: '', godmother: '' }, priest: '', location: '', notes: '' });
+        setShowCreate(false);
+        fetchBaptisms();
+        toast.success('Baptism record created');
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to create baptism record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
@@ -131,7 +164,67 @@ const AdminBaptisms = () => {
             <h2 className="admin-page-title">Baptism Records</h2>
             <p className="admin-page-sub">View and manage all baptism records ({filteredBaptisms.length})</p>
           </div>
+          <button className="admin-btn admin-btn--primary" onClick={() => setShowCreate(!showCreate)}>
+            {showCreate ? 'Cancel' : '+ New Baptism'}
+          </button>
         </div>
+
+        {showCreate && (
+          <form onSubmit={handleCreate} className="admin-form-card" style={{ marginBottom: '1rem' }}>
+            <h3 className="admin-section-heading" style={{ marginTop: 0 }}>New Baptism Record</h3>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Person Name *</label>
+                <input type="text" className="admin-input" value={createData.personName} onChange={(e) => setCreateData({ ...createData, personName: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Date of Birth *</label>
+                <input type="date" className="admin-input" value={createData.dateOfBirth} onChange={(e) => setCreateData({ ...createData, dateOfBirth: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Baptism Date *</label>
+                <input type="date" className="admin-input" value={createData.baptismDate} onChange={(e) => setCreateData({ ...createData, baptismDate: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Father *</label>
+                <input type="text" className="admin-input" value={createData.parents.father} onChange={(e) => setCreateData({ ...createData, parents: { ...createData.parents, father: e.target.value } })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Mother *</label>
+                <input type="text" className="admin-input" value={createData.parents.mother} onChange={(e) => setCreateData({ ...createData, parents: { ...createData.parents, mother: e.target.value } })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Godfather</label>
+                <input type="text" className="admin-input" value={createData.godparents.godfather} onChange={(e) => setCreateData({ ...createData, godparents: { ...createData.godparents, godfather: e.target.value } })} />
+              </div>
+              <div className="admin-form-group">
+                <label>Godmother</label>
+                <input type="text" className="admin-input" value={createData.godparents.godmother} onChange={(e) => setCreateData({ ...createData, godparents: { ...createData.godparents, godmother: e.target.value } })} />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Priest *</label>
+                <input type="text" className="admin-input" value={createData.priest} onChange={(e) => setCreateData({ ...createData, priest: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Location *</label>
+                <input type="text" className="admin-input" value={createData.location} onChange={(e) => setCreateData({ ...createData, location: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-group">
+              <label>Notes</label>
+              <input type="text" className="admin-input" value={createData.notes} onChange={(e) => setCreateData({ ...createData, notes: e.target.value })} />
+            </div>
+            <div className="admin-form-footer">
+              <button type="submit" className="admin-btn admin-btn--primary">Create Baptism Record</button>
+            </div>
+          </form>
+        )}
 
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>

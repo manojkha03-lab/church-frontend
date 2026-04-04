@@ -11,10 +11,23 @@ const AdminMarriages = () => {
   const [marriages, setMarriages] = useState([]);
   const [filteredMarriages, setFilteredMarriages] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [formData, setFormData] = useState({
+    brideName: '',
+    groomName: '',
+    brideDateOfBirth: '',
+    groomDateOfBirth: '',
+    weddingDate: '',
+    witnesses: { witness1: '', witness2: '' },
+    priest: '',
+    location: '',
+    marriageLicense: '',
+    notes: ''
+  });
+  const [createData, setCreateData] = useState({
     brideName: '',
     groomName: '',
     brideDateOfBirth: '',
@@ -62,6 +75,28 @@ const AdminMarriages = () => {
       }
     } catch {
       toast.error('Failed to load marriage records');
+    }
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/api/marriages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(createData)
+      });
+      if (res.ok) {
+        setCreateData({ brideName: '', groomName: '', brideDateOfBirth: '', groomDateOfBirth: '', weddingDate: '', witnesses: { witness1: '', witness2: '' }, priest: '', location: '', marriageLicense: '', notes: '' });
+        setShowCreate(false);
+        fetchMarriages();
+        toast.success('Marriage record created');
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to create marriage record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
     }
   };
 
@@ -134,7 +169,73 @@ const AdminMarriages = () => {
             <h2 className="admin-page-title">Marriage Records</h2>
             <p className="admin-page-sub">View and manage all marriage records ({filteredMarriages.length})</p>
           </div>
+          <button className="admin-btn admin-btn--primary" onClick={() => setShowCreate(!showCreate)}>
+            {showCreate ? 'Cancel' : '+ New Marriage'}
+          </button>
         </div>
+
+        {showCreate && (
+          <form onSubmit={handleCreate} className="admin-form-card" style={{ marginBottom: '1rem' }}>
+            <h3 className="admin-section-heading" style={{ marginTop: 0 }}>New Marriage Record</h3>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Bride Name *</label>
+                <input type="text" className="admin-input" value={createData.brideName} onChange={(e) => setCreateData({ ...createData, brideName: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Groom Name *</label>
+                <input type="text" className="admin-input" value={createData.groomName} onChange={(e) => setCreateData({ ...createData, groomName: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Bride DOB *</label>
+                <input type="date" className="admin-input" value={createData.brideDateOfBirth} onChange={(e) => setCreateData({ ...createData, brideDateOfBirth: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Groom DOB *</label>
+                <input type="date" className="admin-input" value={createData.groomDateOfBirth} onChange={(e) => setCreateData({ ...createData, groomDateOfBirth: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Wedding Date *</label>
+                <input type="date" className="admin-input" value={createData.weddingDate} onChange={(e) => setCreateData({ ...createData, weddingDate: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Witness 1 *</label>
+                <input type="text" className="admin-input" value={createData.witnesses.witness1} onChange={(e) => setCreateData({ ...createData, witnesses: { ...createData.witnesses, witness1: e.target.value } })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Witness 2 *</label>
+                <input type="text" className="admin-input" value={createData.witnesses.witness2} onChange={(e) => setCreateData({ ...createData, witnesses: { ...createData.witnesses, witness2: e.target.value } })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Priest *</label>
+                <input type="text" className="admin-input" value={createData.priest} onChange={(e) => setCreateData({ ...createData, priest: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Location *</label>
+                <input type="text" className="admin-input" value={createData.location} onChange={(e) => setCreateData({ ...createData, location: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Marriage License</label>
+                <input type="text" className="admin-input" value={createData.marriageLicense} onChange={(e) => setCreateData({ ...createData, marriageLicense: e.target.value })} />
+              </div>
+              <div className="admin-form-group">
+                <label>Notes</label>
+                <input type="text" className="admin-input" value={createData.notes} onChange={(e) => setCreateData({ ...createData, notes: e.target.value })} />
+              </div>
+            </div>
+            <div className="admin-form-footer">
+              <button type="submit" className="admin-btn admin-btn--primary">Create Marriage Record</button>
+            </div>
+          </form>
+        )}
 
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>

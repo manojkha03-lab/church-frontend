@@ -214,7 +214,7 @@ const MemberDashboard = () => {
               <Icon d={icons.donate} size={22} />
             </div>
             <div>
-              <p className="member-db-stat-val">${loading ? '–' : totalDonated.toFixed(0)}</p>
+              <p className="member-db-stat-val">₹{loading ? '–' : totalDonated.toFixed(0)}</p>
               <p className="member-db-stat-lbl">Total Given</p>
             </div>
           </Link>
@@ -393,7 +393,7 @@ const MemberDashboard = () => {
                   {donations.map((d, i) => (
                     <div key={d._id || i} className="member-db-donation-item">
                       <div>
-                        <p className="member-db-donation-amount">${(d.amount || 0).toFixed(2)}</p>
+                        <p className="member-db-donation-amount">₹{(d.amount || 0).toFixed(2)}</p>
                         <p className="member-db-donation-meta">
                           {d.method && `${d.method} · `}
                           {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : ''}

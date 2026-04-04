@@ -1,31 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 import { API_URL } from '../config/api';
-
-const SHEET_API = import.meta.env.VITE_SHEET_API_URL || '';
-
-const normalizeSheetData = (payload) => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.rows)) return payload.rows;
-  return [];
-};
-
-const fetchSheetData = async () => {
-  if (!SHEET_API) return [];
-  try {
-    const res = await fetch(SHEET_API, { cache: 'no-store' });
-    if (!res.ok) {
-      throw new Error(`Sheet API returned ${res.status}`);
-    }
-    const data = await res.json();
-    return normalizeSheetData(data);
-  } catch (err) {
-    console.error('Sheet fetch error:', err);
-    return [];
-  }
-};
 
 // Shared sidebar nav exported for use in all admin pages
 const AdminMenu = () => (
@@ -57,76 +33,12 @@ const StatCard = ({ label, value, sub, to, icon, accent }) => (
   </Link>
 );
 
-const RANGE_OPTIONS = [
-  { key: '24h', label: '24h' },
-  { key: '7d', label: '7d' },
-  { key: '30d', label: '30d' },
-];
-
-const RANGE_TO_MS = {
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-};
-
-const Sparkline = ({ points = [], stroke = '#0f766e' }) => {
-  const width = 120;
-  const height = 36;
-  const padding = 3;
-
-  if (!Array.isArray(points) || points.length === 0) {
-    return <div className="h-9" />;
-  }
-
-  const max = Math.max(...points, 1);
-  const min = Math.min(...points, 0);
-  const range = max - min || 1;
-  const stepX = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0;
-
-  const polyline = points
-    .map((value, index) => {
-      const x = padding + index * stepX;
-      const y = height - padding - ((value - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg className="mt-2" viewBox={`0 0 ${width} ${height}`} width="100%" height="36" role="img" aria-label="Trend sparkline">
-      <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
-const AnalyticsCard = ({ label, value, trend, series }) => {
-  const title = `${label}: ${trend?.detail || 'No trend data'}`;
-  const stroke = trend?.direction === 'up' ? '#15803d' : trend?.direction === 'down' ? '#be123c' : '#475569';
-
-  return (
-    <div className="p-4 bg-white rounded-xl shadow border border-slate-100">
-      <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm text-slate-600">{label}</h4>
-        <span className="text-slate-400 text-xs cursor-help" title={title} aria-label={title}>ⓘ</span>
-      </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <span className={`inline-flex mt-2 px-2 py-1 text-[11px] rounded-full font-medium ${trend.badgeClass}`} title={title}>
-        {trend.text}
-      </span>
-      <Sparkline points={series} stroke={stroke} />
-    </div>
-  );
-};
-
 const AdminDashboard = () => {
   const { user, token } = useAuth();
   const [stats, setStats]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
-  const [sheetData, setSheetData] = useState([]);
-  const [sheetLoading, setSheetLoading] = useState(true);
-  const [lastSheetSync, setLastSheetSync] = useState(null);
-  const [selectedRange, setSelectedRange] = useState('24h');
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
@@ -156,27 +68,6 @@ const AdminDashboard = () => {
     });
   }, [user, token]);
 
-  useEffect(() => {
-    if (user?.role !== 'admin') return;
-
-    let active = true;
-    const syncSheetData = async () => {
-      const rows = await fetchSheetData();
-      if (!active) return;
-      setSheetData(Array.isArray(rows) ? rows : []);
-      setSheetLoading(false);
-      setLastSheetSync(new Date());
-    };
-
-    syncSheetData();
-    const interval = setInterval(syncSheetData, 30000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [user?.role]);
-
   const dismissNotification = async (id) => {
     const res = await fetch(`${API_URL}/api/admin/notifications/${id}`, {
       method: 'DELETE',
@@ -186,145 +77,6 @@ const AdminDashboard = () => {
       setNotifications(notifications.filter(n => n._id !== id));
     }
   };
-
-  const getType = (entry) => String(entry?.type || '').toUpperCase();
-  const getEntryDate = (entry) => {
-    const raw = entry?.timestamp || entry?.time || entry?.createdAt || entry?.date;
-    if (!raw) return null;
-    const parsed = new Date(raw);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  };
-
-  const parsedSheetData = useMemo(
-    () => sheetData.map((entry) => ({ ...entry, __date: getEntryDate(entry) })),
-    [sheetData]
-  );
-
-  const hasDatedData = parsedSheetData.some((entry) => entry.__date);
-  const rangeMs = RANGE_TO_MS[selectedRange] || RANGE_TO_MS['24h'];
-  const now = Date.now();
-  const currentStart = now - rangeMs;
-  const previousStart = now - (2 * rangeMs);
-
-  const filteredSheetData = useMemo(() => {
-    if (!hasDatedData) return parsedSheetData;
-    return parsedSheetData.filter((entry) => {
-      if (!entry.__date) return false;
-      const time = entry.__date.getTime();
-      return time >= currentStart && time <= now;
-    });
-  }, [parsedSheetData, hasDatedData, currentStart, now]);
-
-  const countByType = (items, type) => items.filter((d) => getType(d) === String(type).toUpperCase()).length;
-
-  const formatTrend = (current, previous) => {
-    const delta = current - previous;
-    const windowLabel = selectedRange;
-
-    if (delta === 0) {
-      return {
-        text: 'No change',
-        badgeClass: 'bg-slate-100 text-slate-600',
-        direction: 'flat',
-        detail: `No difference versus previous ${windowLabel} window (${current} vs ${previous})`,
-      };
-    }
-
-    if (previous === 0) {
-      return {
-        text: delta > 0 ? `+${delta} new` : `${delta} drop`,
-        badgeClass: delta > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700',
-        direction: delta > 0 ? 'up' : 'down',
-        detail: delta > 0
-          ? `${current} in current ${windowLabel}; previous ${windowLabel} had 0`
-          : `${current} in current ${windowLabel}; down ${Math.abs(delta)} from previous ${windowLabel}`,
-      };
-    }
-
-    const percent = Math.round((Math.abs(delta) / previous) * 100);
-    return {
-      text: delta > 0 ? `↑ ${percent}%` : `↓ ${percent}%`,
-      badgeClass: delta > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700',
-      direction: delta > 0 ? 'up' : 'down',
-      detail: delta > 0
-        ? `${current} vs ${previous} compared to previous ${windowLabel} (${percent}% increase)`
-        : `${current} vs ${previous} compared to previous ${windowLabel} (${percent}% decrease)`,
-    };
-  };
-
-  const getWindowTrend = (type) => {
-    const normalized = String(type).toUpperCase();
-    const latestWindow = sheetData.slice(-10);
-    const previousWindow = sheetData.slice(-20, -10);
-    const current = latestWindow.filter((d) => getType(d) === normalized).length;
-    const previous = previousWindow.filter((d) => getType(d) === normalized).length;
-    return formatTrend(current, previous);
-  };
-
-  const getTrend = (type) => {
-    const normalized = String(type).toUpperCase();
-    let current = 0;
-    let previous = 0;
-    let datedCount = 0;
-
-    for (const entry of sheetData) {
-      if (getType(entry) !== normalized) continue;
-      const date = getEntryDate(entry);
-      if (!date) continue;
-      datedCount += 1;
-      const time = date.getTime();
-
-      if (time >= currentStart && time <= now) {
-        current += 1;
-      } else if (time >= previousStart && time < currentStart) {
-        previous += 1;
-      }
-    }
-
-    // Fallback to row-window trend if sheet rows do not include parseable timestamps.
-    if (datedCount === 0) {
-      return getWindowTrend(type);
-    }
-
-    return formatTrend(current, previous);
-  };
-
-  const buildSparklineSeries = (type) => {
-    const normalized = String(type).toUpperCase();
-
-    if (!hasDatedData) {
-      const fallback = parsedSheetData.slice(-12);
-      return fallback.map((entry) => (getType(entry) === normalized ? 1 : 0));
-    }
-
-    const bucketCount = selectedRange === '24h' ? 12 : 10;
-    const bucketMs = rangeMs / bucketCount;
-    const buckets = Array.from({ length: bucketCount }, () => 0);
-
-    filteredSheetData.forEach((entry) => {
-      if (getType(entry) !== normalized || !entry.__date) return;
-      const diff = entry.__date.getTime() - currentStart;
-      if (diff < 0 || diff > rangeMs) return;
-      const index = Math.min(bucketCount - 1, Math.floor(diff / bucketMs));
-      buckets[index] += 1;
-    });
-
-    return buckets;
-  };
-
-  const totalLogins = countByType(filteredSheetData, 'LOGIN');
-  const totalUsers = countByType(filteredSheetData, 'REGISTER');
-  const totalEvents = countByType(filteredSheetData, 'EVENT_CREATED');
-  const totalDonations = countByType(filteredSheetData, 'DONATION');
-  const recentSheetActivity = filteredSheetData.slice(-10).reverse();
-  const usersTrend = getTrend('REGISTER');
-  const loginsTrend = getTrend('LOGIN');
-  const eventsTrend = getTrend('EVENT_CREATED');
-  const donationsTrend = getTrend('DONATION');
-  const usersSeries = buildSparklineSeries('REGISTER');
-  const loginsSeries = buildSparklineSeries('LOGIN');
-  const eventsSeries = buildSparklineSeries('EVENT_CREATED');
-  const donationsSeries = buildSparklineSeries('DONATION');
 
   if (user?.role !== 'admin') return <Navigate to="/" />;
 
@@ -349,72 +101,8 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
               <StatCard icon="👥" label="Total Members"    value={stats?.totalUsers ?? 0}          to="/admin/users"     accent />
               <StatCard icon="⏱️"  label="Pending Approval" value={stats?.pendingUsers ?? 0}         to="/admin/users"     accent={stats?.pendingUsers > 0} />
-              <StatCard icon="💰" label="Total Donations"  value={`$${(stats?.totalDonations ?? 0).toFixed(2)}`} to="/admin/donations" accent />
+              <StatCard icon="💰" label="Total Donations"  value={`₹${(stats?.totalDonations ?? 0).toFixed(2)}`} to="/admin/donations" accent />
               <StatCard icon="✓" label="Completed Gifts"  value={stats?.completedDonations ?? 0}  to="/admin/donations" />
-            </div>
-
-            <div className="mb-6 sm:mb-8">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                <h3 className="admin-section-heading mb-0">Google Sheets Analytics</h3>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {RANGE_OPTIONS.map((option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => setSelectedRange(option.key)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
-                        selectedRange === option.key
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                  <p className="text-xs text-gray-500">
-                    Auto-refresh: 30s{lastSheetSync ? ` · Last sync ${lastSheetSync.toLocaleTimeString()}` : ''}
-                  </p>
-                </div>
-              </div>
-
-              {sheetLoading ? (
-                <div className="admin-loading"><span className="dash-spinner" />Loading analytics...</div>
-              ) : (
-                <>
-                  {!hasDatedData && (
-                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-                      Timestamp fields were not found for all sheet rows. Range filters use available dated rows and trends fall back to row windows when needed.
-                    </p>
-                  )}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                    <AnalyticsCard label="Total Users" value={totalUsers} trend={usersTrend} series={usersSeries} />
-                    <AnalyticsCard label="Logins" value={totalLogins} trend={loginsTrend} series={loginsSeries} />
-                    <AnalyticsCard label="Events" value={totalEvents} trend={eventsTrend} series={eventsSeries} />
-                    <AnalyticsCard label="Donations" value={totalDonations} trend={donationsTrend} series={donationsSeries} />
-                  </div>
-
-                  <div className="mt-4 bg-white rounded-xl shadow border border-slate-100 p-4">
-                    <h4 className="text-base font-semibold text-slate-900 mb-3">Recent Activity</h4>
-                    {recentSheetActivity.length === 0 ? (
-                      <p className="text-sm text-slate-500">No sheet activity available yet.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {recentSheetActivity.map((item, i) => (
-                          <div key={`${item?.timestamp || item?.time || i}-${i}`} className="p-3 rounded-lg border border-slate-100 bg-slate-50 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                            <div className="break-words">
-                              <span className="font-semibold text-slate-900">{item?.type || 'UNKNOWN'}</span>
-                              <span className="text-slate-600"> - {item?.email || item?.name || 'N/A'}</span>
-                            </div>
-                            <span className="text-xs text-slate-500 whitespace-nowrap">
-                              {item?.timestamp || item?.time || item?.createdAt || ''}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
             </div>
 
             <h3 className="admin-section-heading">Quick Access</h3>

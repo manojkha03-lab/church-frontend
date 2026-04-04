@@ -11,10 +11,10 @@ const Icon = ({ d, size = 20 }) => (
 );
 
 const givingTiers = [
-  { amount: 25, label: 'Community Care', sub: 'Helps supply meals and outreach support.' },
-  { amount: 50, label: 'Sunday Ministry', sub: 'Supports worship materials and children programs.' },
-  { amount: 100, label: 'Church Mission', sub: 'Strengthens local mission work and benevolence.' },
-  { amount: 250, label: 'Legacy Gift', sub: 'Supports larger campus and ministry needs.' },
+  { amount: 500, label: 'Community Care', sub: 'Helps supply meals and outreach support.' },
+  { amount: 1000, label: 'Sunday Ministry', sub: 'Supports worship materials and children programs.' },
+  { amount: 2500, label: 'Church Mission', sub: 'Strengthens local mission work and benevolence.' },
+  { amount: 5000, label: 'Legacy Gift', sub: 'Supports larger campus and ministry needs.' },
 ];
 
 const impactCards = [
@@ -36,7 +36,7 @@ const impactCards = [
 ];
 
 const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value || 0);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
 
 const Donations = () => {
   const { token, user } = useAuth();
@@ -44,7 +44,7 @@ const Donations = () => {
   const [donations, setDonations] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [loadingAmount, setLoadingAmount] = useState(null);
-  const [customAmount, setCustomAmount] = useState('75');
+  const [customAmount, setCustomAmount] = useState('1000');
 
   useEffect(() => {
     const fetchDonations = async () => {
@@ -85,7 +85,7 @@ const Donations = () => {
   const startCheckout = async (amountInDollars) => {
     const cents = Math.round(Number(amountInDollars) * 100);
     if (!Number.isFinite(cents) || cents < 100) {
-      toast.error('Enter at least $1 to continue');
+      toast.error('Enter at least ₹1 to continue');
       return;
     }
 
@@ -229,7 +229,7 @@ const Donations = () => {
                 <div className="flex-1">
                   <label htmlFor="custom-donation" className="text-sm font-semibold text-[#1F2A44]">Custom amount</label>
                   <div className="mt-2 flex items-center rounded-2xl border border-blue-100 bg-white px-4 shadow-sm">
-                    <span className="text-lg font-semibold text-slate-400">$</span>
+                    <span className="text-lg font-semibold text-slate-400">₹</span>
                     <input
                       id="custom-donation"
                       type="number"

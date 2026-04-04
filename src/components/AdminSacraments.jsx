@@ -11,11 +11,22 @@ const AdminSacraments = () => {
   const [sacraments, setSacraments] = useState([]);
   const [filteredSacraments, setFilteredSacraments] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [filterType, setFilterType] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [formData, setFormData] = useState({
+    personName: '',
+    sacramentType: 'Confirmation',
+    dateOfBirth: '',
+    sacramentDate: '',
+    sponsor: '',
+    priest: '',
+    location: '',
+    notes: ''
+  });
+  const [createData, setCreateData] = useState({
     personName: '',
     sacramentType: 'Confirmation',
     dateOfBirth: '',
@@ -68,7 +79,29 @@ const AdminSacraments = () => {
     }
   };
 
-  const handleEdit = (sacrament) => {
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/api/sacraments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(createData)
+      });
+      if (res.ok) {
+        setCreateData({ personName: '', sacramentType: 'Confirmation', dateOfBirth: '', sacramentDate: '', sponsor: '', priest: '', location: '', notes: '' });
+        setShowCreate(false);
+        fetchSacraments();
+        toast.success('Sacrament record created');
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to create sacrament record');
+      }
+    } catch {
+      toast.error('Network error — please try again');
+    }
+  };
+
+  const handleEditStart = (sacrament) => {
     setEditing(sacrament._id);
     setFormData({
       personName: sacrament.personName,
@@ -135,7 +168,65 @@ const AdminSacraments = () => {
             <h2 className="admin-page-title">Sacrament Records</h2>
             <p className="admin-page-sub">View and manage all sacrament records ({filteredSacraments.length})</p>
           </div>
+          <button className="admin-btn admin-btn--primary" onClick={() => setShowCreate(!showCreate)}>
+            {showCreate ? 'Cancel' : '+ New Sacrament'}
+          </button>
         </div>
+
+        {showCreate && (
+          <form onSubmit={handleCreate} className="admin-form-card" style={{ marginBottom: '1rem' }}>
+            <h3 className="admin-section-heading" style={{ marginTop: 0 }}>New Sacrament Record</h3>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Person Name *</label>
+                <input type="text" className="admin-input" value={createData.personName} onChange={(e) => setCreateData({ ...createData, personName: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Sacrament Type *</label>
+                <select className="admin-select" value={createData.sacramentType} onChange={(e) => setCreateData({ ...createData, sacramentType: e.target.value })} required>
+                  <option value="Confirmation">Confirmation</option>
+                  <option value="Eucharist">Eucharist</option>
+                  <option value="Reconciliation">Reconciliation</option>
+                  <option value="Anointing of the Sick">Anointing of the Sick</option>
+                  <option value="Holy Orders">Holy Orders</option>
+                </select>
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Date of Birth *</label>
+                <input type="date" className="admin-input" value={createData.dateOfBirth} onChange={(e) => setCreateData({ ...createData, dateOfBirth: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Sacrament Date *</label>
+                <input type="date" className="admin-input" value={createData.sacramentDate} onChange={(e) => setCreateData({ ...createData, sacramentDate: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Priest *</label>
+                <input type="text" className="admin-input" value={createData.priest} onChange={(e) => setCreateData({ ...createData, priest: e.target.value })} required />
+              </div>
+              <div className="admin-form-group">
+                <label>Location *</label>
+                <input type="text" className="admin-input" value={createData.location} onChange={(e) => setCreateData({ ...createData, location: e.target.value })} required />
+              </div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-form-group">
+                <label>Sponsor</label>
+                <input type="text" className="admin-input" value={createData.sponsor} onChange={(e) => setCreateData({ ...createData, sponsor: e.target.value })} />
+              </div>
+              <div className="admin-form-group">
+                <label>Notes</label>
+                <input type="text" className="admin-input" value={createData.notes} onChange={(e) => setCreateData({ ...createData, notes: e.target.value })} />
+              </div>
+            </div>
+            <div className="admin-form-footer">
+              <button type="submit" className="admin-btn admin-btn--primary">Create Sacrament Record</button>
+            </div>
+          </form>
+        )}
 
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -218,7 +309,7 @@ const AdminSacraments = () => {
                       {sacrament.sponsor && <p><strong>Sponsor:</strong> {sacrament.sponsor}</p>}
                     </div>
                     <div>
-                      <button onClick={() => handleEdit(sacrament)} className="btn-secondary" style={{ marginRight: '0.5rem' }}>Edit</button>
+                      <button onClick={() => handleEditStart(sacrament)} className="btn-secondary" style={{ marginRight: '0.5rem' }}>Edit</button>
                       <button onClick={() => setConfirm({ id: sacrament._id, label: `${sacrament.personName} - ${sacrament.sacramentType}` })} className="admin-btn admin-btn--danger">Delete</button>
                     </div>
                   </div>
